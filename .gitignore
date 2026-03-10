@@ -1,0 +1,13 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+
+# Generated outputs (produced at runtime in workspace/)
+workspace/
+*.report.md
+lowwwimpact-evaluation.json

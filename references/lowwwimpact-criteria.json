@@ -1,0 +1,432 @@
+{
+  "_source": "lowwwimpact-agent-questions - Assessement questions.csv",
+  "_note": "27 MVP criteria (MVP=TRUE, Entity=Question). default_answer and default_description are pre-filled starting points — the evaluator confirms or overrides them based on evidence.",
+  "criteria": [
+    {
+      "id": "1.1.b",
+      "wsg_id": "2.5.b",
+      "title": "Planet-centered approach",
+      "question": "Were the needs of the planet and ecological limits taken into account when developing the idea and project?",
+      "type": "Checkboxes",
+      "answers": [
+        "A digital pollution & responsibility awareness training was realised.",
+        "The client has mapped the potential negative impacts of his project.",
+        "The client has set a continuous improvement strategy to tackle the potential negative impacts."
+      ],
+      "automatable": false,
+      "report_mapping": null,
+      "default_answer": null,
+      "default_description": "Manual verification needed — requires knowledge of team training records, client impact mapping exercises, and improvement strategy documents"
+    },
+    {
+      "id": "1.2.a",
+      "wsg_id": "2.7.a",
+      "title": "Experience design",
+      "question": "Are design choices (focus on decorative assets, user-journey and user interactions) relevant to UX and benefit the comprehension of the content?",
+      "type": "Checkboxes",
+      "answers": [
+        "Decorative elements provide value to the design or a better comprehension of the content.",
+        "Decorative elements do not create readability issues.",
+        "User interactions are easy to understand and not create usability issues."
+      ],
+      "automatable": "partial",
+      "report_mapping": ["css-html-audit"],
+      "default_answer": ["Decorative elements do not create readability issues."],
+      "default_description": "Partially verifiable — readability can be checked via contrast and layout analysis; design value and interaction usability need human review"
+    },
+    {
+      "id": "1.3.c",
+      "wsg_id": "2.11.c",
+      "title": "Tracking & Data Management",
+      "question": "Is your product exempt of page tracking removed or limited to what is really necessary?",
+      "type": "Checkboxes",
+      "answers": [
+        "There is no unused page tracking in my product.",
+        "There is no unconsented page tracking in my product, this means a presence of a functional cookie bar.",
+        "Page tracking is limited to what is really necessary.",
+        "Users are be able to stop unwanted website tracking, this means the cookie settings can be accessed from the website."
+      ],
+      "automatable": true,
+      "report_mapping": ["javascript-audit", "network-infra-audit"],
+      "default_answer": [
+        "There is no unused page tracking in my product.",
+        "There is no unconsented page tracking in my product, this means a presence of a functional cookie bar.",
+        "Page tracking is limited to what is really necessary.",
+        "Users are be able to stop unwanted website tracking, this means the cookie settings can be accessed from the website."
+      ],
+      "default_description": "Verify via network inspection — detect tracking scripts (GA, GTM, Facebook, Hotjar, etc.), check for cookie consent banner, and verify cookie settings are accessible"
+    },
+    {
+      "id": "1.4.a",
+      "wsg_id": "2.15.a",
+      "title": "Need for images",
+      "question": "Are the images creating a plus-value on the website without creating legibility issues?",
+      "type": "Checkboxes",
+      "answers": [
+        "Images are essential and informative.",
+        "Images do not impair legibility."
+      ],
+      "automatable": "partial",
+      "report_mapping": ["images-audit"],
+      "default_answer": ["Images do not impair legibility."],
+      "default_description": "Partially verifiable — legibility can be checked via contrast/overlay analysis; whether images are essential and informative needs human review"
+    },
+    {
+      "id": "1.4.b",
+      "wsg_id": "2.15.b",
+      "title": "Optimize images",
+      "question": "Are the images displayed optimally, taking into account the different screen resolutions, recent technologies and the loading time?",
+      "type": "Checkboxes",
+      "answers": [
+        "Images are work in all browser, providing alternatives (transcripts, other file formats) when not compatible.",
+        "Images are compressed and optimized using modern format such as .webp.",
+        "Images are self-hosted.",
+        "The most appropriate image size is loaded by default.",
+        "Graphics and maps can be enlarged at the user's request."
+      ],
+      "automatable": true,
+      "report_mapping": ["images-audit"],
+      "default_answer": [
+        "Images are work in all browser, providing alternatives (transcripts, other file formats) when not compatible.",
+        "Images are compressed and optimized using modern format such as .webp.",
+        "Images are self-hosted.",
+        "The most appropriate image size is loaded by default.",
+        "Graphics and maps can be enlarged at the user's request."
+      ],
+      "default_description": "Verify via DOM inspection — check for <picture> elements, srcset attributes, WebP/AVIF sources, self-hosted image domains, and responsive sizing"
+    },
+    {
+      "id": "1.4.c",
+      "wsg_id": "2.15.c",
+      "title": "Lazy loading",
+      "question": "Is lazy loading used to ensure that image assets are only loaded when they are needed?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": true,
+      "report_mapping": ["images-audit"],
+      "default_answer": true,
+      "default_description": "Verify via DOM check — below-fold images should have loading=\"lazy\" attribute"
+    },
+    {
+      "id": "1.4.d",
+      "wsg_id": "2.16.d",
+      "title": "Access alternatives (images)",
+      "question": "Have you provided text alternatives for your users to access an image?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": true,
+      "report_mapping": ["images-audit"],
+      "default_answer": true,
+      "default_description": "Verify via DOM check — non-decorative <img> tags should have meaningful alt attributes (not empty, not just filename)"
+    },
+    {
+      "id": "1.5.a",
+      "wsg_id": "2.16.a",
+      "title": "Need for media",
+      "question": "Are video and audio content displayed adapted to the user's needs?",
+      "type": "Checkboxes",
+      "answers": [
+        "Media content are essential and informative.",
+        "Media content do not autoplay.",
+        "Media content have controls to paused and muted.",
+        "Media content do not impair legibility."
+      ],
+      "automatable": true,
+      "report_mapping": ["media-fonts-audit"],
+      "default_answer": [
+        "Media content are essential and informative.",
+        "Media content do not autoplay.",
+        "Media content have controls to paused and muted.",
+        "Media content do not impair legibility."
+      ],
+      "default_description": "Verify via DOM inspection — check <video>/<audio> for autoplay attribute, controls attribute, and overlay/layout impact. N/A if no media on site."
+    },
+    {
+      "id": "1.5.b",
+      "wsg_id": "2.16.b",
+      "title": "Media optimization",
+      "question": "Is the correct method being used to play a video or sound?",
+      "type": "Checkboxes",
+      "answers": [
+        "Media content are work in all browser, providing alternatives (transcripts, other file formats) when not compatible.",
+        "Media content are compressed and optimized using modern format such as .webm.",
+        "Media content are self-hosted.",
+        "Multiple sizes are available, the most appropriate size is loaded by default."
+      ],
+      "automatable": true,
+      "report_mapping": ["media-fonts-audit"],
+      "default_answer": [
+        "Media content are work in all browser, providing alternatives (transcripts, other file formats) when not compatible.",
+        "Media content are compressed and optimized using modern format such as .webm.",
+        "Media content are self-hosted.",
+        "Multiple sizes are available, the most appropriate size is loaded by default."
+      ],
+      "default_description": "Verify via DOM and network inspection — check <video>/<source> for .webm format, self-hosted URLs, and multiple source sizes. N/A if no media on site."
+    },
+    {
+      "id": "1.5.c",
+      "wsg_id": "2.16.c",
+      "title": "Loading facade",
+      "question": "Is there a loading mechanism to ensure that video and sound assets are only loaded when they are needed, without pre-loading?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": true,
+      "report_mapping": ["media-fonts-audit", "network-infra-audit"],
+      "default_answer": true,
+      "default_description": "Verify via network tab — reload page without playing media; if youtube/vimeo/media requests appear before user interaction, there is no facade. N/A if no media on site."
+    },
+    {
+      "id": "1.5.d",
+      "wsg_id": "2.16.d",
+      "title": "Access alternatives (media)",
+      "question": "Have you provided media alternatives for your users to access a media?",
+      "type": "Checkboxes",
+      "answers": [
+        "Subtitles are available.",
+        "Awareness is raised when a less appropriate size is loaded.",
+        "Video and audio can be switched off and alternatively accessed through transcripts or sufficient text alternatives."
+      ],
+      "automatable": "partial",
+      "report_mapping": ["media-fonts-audit"],
+      "default_answer": ["Subtitles are available."],
+      "default_description": "Partially verifiable — can check for <track> elements and .vtt files; transcript availability and size awareness need human review. N/A if no media on site."
+    },
+    {
+      "id": "1.6.b",
+      "wsg_id": "2.17.b",
+      "title": "Avoid overburdening",
+      "question": "Animations are behaving in a way that:",
+      "type": "Checkboxes",
+      "answers": [
+        "Allows users to read and navigate the website without legibility issues.",
+        "Allows browsers and devices to run without frame drops due to overloading.",
+        "Allows users to have a similar experience without information loss no matter the internet speed, device or browser they have."
+      ],
+      "automatable": "partial",
+      "report_mapping": ["css-html-audit", "carbon-performance-audit"],
+      "default_answer": [
+        "Allows browsers and devices to run without frame drops due to overloading."
+      ],
+      "default_description": "Partially verifiable — can measure FPS and CSS animation count; legibility impact and cross-device parity need human review. N/A if no animations on site."
+    },
+    {
+      "id": "1.9.d",
+      "wsg_id": "2.24.d",
+      "title": "Testing and validation",
+      "question": "Are user tests regularly used to validate the assumptions?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": false,
+      "report_mapping": null,
+      "default_answer": null,
+      "default_description": "Manual verification needed — requires knowledge of the team's user testing practices, survey cadence, and validation workflow"
+    },
+    {
+      "id": "1.10.b",
+      "wsg_id": "2.29.d",
+      "title": "Mobile-friendliness",
+      "question": "Is the user's experience also guaranteed on mobile devices without any loss?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": true,
+      "report_mapping": ["css-html-audit", "carbon-performance-audit"],
+      "default_answer": true,
+      "default_description": "Verify via DOM and viewport check — confirm <meta name=\"viewport\"> is present, CSS uses responsive breakpoints, and no horizontal overflow on small screens"
+    },
+    {
+      "id": "2.1.a",
+      "wsg_id": "3.1.a",
+      "title": "Performance goals",
+      "question": "Did you set up and monitored performance goals?",
+      "type": "Checkboxes",
+      "answers": [
+        "A page budget methodology has been defined and is used.",
+        "CPU usage and overall performance such as FPS have been monitored during development phases.",
+        "The website has been developed with slow internet and older devices compatibility taken into account."
+      ],
+      "automatable": "partial",
+      "report_mapping": ["carbon-performance-audit"],
+      "default_answer": [
+        "The website has been developed with slow internet and older devices compatibility taken into account."
+      ],
+      "default_description": "Partially verifiable — can measure page weight against budget thresholds and test with throttled connection; whether a formal page budget methodology exists and FPS was monitored during dev needs human review"
+    },
+    {
+      "id": "2.2.a",
+      "wsg_id": "3.2.a",
+      "title": "Minify code",
+      "question": "Did you minify your code?",
+      "type": "Checkboxes",
+      "answers": [
+        "HTML",
+        "CSS",
+        "Javascript",
+        "Data files (e.g JSON or RSS)"
+      ],
+      "automatable": true,
+      "report_mapping": ["javascript-audit", "css-html-audit"],
+      "default_answer": [
+        "HTML",
+        "CSS",
+        "Javascript",
+        "Data files (e.g JSON or RSS)"
+      ],
+      "default_description": "Verify via response inspection — fetch HTML/CSS/JS resources and check whitespace ratio; minified files have minimal newlines and indentation"
+    },
+    {
+      "id": "2.3.a",
+      "wsg_id": "3",
+      "title": "Accessibility compliance",
+      "question": "What kind of accessibility test have you performed on your product?",
+      "type": "Checkboxes",
+      "answers": [
+        "Online accessibility checker such as Lighthouse",
+        "WCAG or RGAA Audit",
+        "User usability test"
+      ],
+      "automatable": "partial",
+      "report_mapping": ["css-html-audit"],
+      "default_answer": ["Online accessibility checker such as Lighthouse"],
+      "default_description": "Partially verifiable — can run automated Lighthouse accessibility check; whether a formal WCAG audit or user usability test was performed needs human review"
+    },
+    {
+      "id": "2.5.a",
+      "wsg_id": "3.6.a",
+      "title": "Third-party implementation",
+      "question": "Are third-party content placed behind a facade (click-to-load mechanism) feature?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": true,
+      "report_mapping": ["network-infra-audit", "javascript-audit"],
+      "default_answer": true,
+      "default_description": "Verify via network inspection — reload page and check if third-party embeds (YouTube, Vimeo, Maps, social widgets) load without user interaction; if they do, there is no facade"
+    },
+    {
+      "id": "2.5.c",
+      "wsg_id": "3.6.c",
+      "title": "Self-hosting and dependencies",
+      "question": "How many third-party dependencies could you technically self-host to limit dependencies?",
+      "type": "Number",
+      "answers": null,
+      "automatable": true,
+      "report_mapping": ["network-infra-audit"],
+      "default_answer": 0,
+      "default_description": "Verify via network inspection — count third-party domains serving resources that could technically be self-hosted (fonts, analytics libraries, embeddable widgets); 0 is ideal, higher is worse"
+    },
+    {
+      "id": "2.7.b",
+      "wsg_id": "3.19.b",
+      "title": "Technology choice",
+      "question": "The technologies used are:",
+      "type": "Checkboxes",
+      "answers": [
+        "Stable",
+        "Secure",
+        "Appropriate for the products functionalities.",
+        "Appropriate based on the allowed ressources (human, time, budget and knowledge) given to create the product.",
+        "The most efficient languages that checks all the answers above."
+      ],
+      "automatable": "partial",
+      "report_mapping": ["javascript-audit", "css-html-audit"],
+      "default_answer": ["Stable", "Secure"],
+      "default_description": "Partially verifiable — can detect tech stack (framework, libraries, versions) and check for known vulnerabilities or deprecated versions; appropriateness for project scope and resource constraints needs human review"
+    },
+    {
+      "id": "2.8.a",
+      "wsg_id": "3",
+      "title": "Native features in the browser",
+      "question": "How many custom components could have been replaced with a native feature of the browser?",
+      "type": "Number",
+      "answers": null,
+      "automatable": "partial",
+      "report_mapping": ["javascript-audit", "css-html-audit"],
+      "default_answer": 0,
+      "default_description": "Partially verifiable — can detect custom date pickers, modals, accordions, tooltips that have native HTML equivalents (<dialog>, <details>, <datalist>, popover); 0 is ideal, higher is worse"
+    },
+    {
+      "id": "3.1.a",
+      "wsg_id": "4.1.a",
+      "title": "Minimum sustainability requirements",
+      "question": "Does your hosting service:",
+      "type": "Checkboxes",
+      "answers": [
+        "has verifiable labels or certifications showing their commitment for sustainability.",
+        "is providing sustainability-related key metrics publicly."
+      ],
+      "automatable": "partial",
+      "report_mapping": ["carbon-performance-audit", "network-infra-audit"],
+      "default_answer": null,
+      "default_description": "Partially verifiable — can identify the hosting provider from server headers and check Green Web Foundation database; verifying specific labels/certifications and public metrics requires visiting the hosting provider's website"
+    },
+    {
+      "id": "3.1.e",
+      "wsg_id": "4.1.e",
+      "title": "Hosting location",
+      "question": "Is your hosting provider geolocated accordingly to your audience location?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": true,
+      "report_mapping": ["network-infra-audit", "carbon-performance-audit"],
+      "default_answer": true,
+      "default_description": "Verify via server headers — check server IP geolocation against the target audience region (e.g., Swiss site should be hosted in Europe)"
+    },
+    {
+      "id": "3.2.a",
+      "wsg_id": "4.2.a",
+      "title": "Browser & Server-side caching",
+      "question": "Is your server configured to render cached version of your content?",
+      "type": "Checkboxes",
+      "answers": [
+        "HTML for static page",
+        "JS & CSS",
+        "Images, Fonts",
+        "Document files such as JSON and PDFs"
+      ],
+      "automatable": true,
+      "report_mapping": ["network-infra-audit"],
+      "default_answer": [
+        "HTML for static page",
+        "JS & CSS",
+        "Images, Fonts",
+        "Document files such as JSON and PDFs"
+      ],
+      "default_description": "Verify via response headers — check Cache-Control and Expires headers for each resource type (HTML, CSS/JS, images/fonts, JSON/PDF)"
+    },
+    {
+      "id": "3.3.a",
+      "wsg_id": "4.3.a",
+      "title": "Server-side compression",
+      "question": "Which percentage of your website bandwidth usage is compressed when travelling over the network?",
+      "type": "Range",
+      "answers": ["0", "100"],
+      "automatable": true,
+      "report_mapping": ["network-infra-audit"],
+      "default_answer": 80,
+      "default_description": "Verify via network inspection — compare 'kB transferred' vs 'kB resources' to compute compression ratio: (100 - (transferred/resources * 100)); check Content-Encoding headers for gzip/brotli"
+    },
+    {
+      "id": "3.5.a",
+      "wsg_id": "4.7.a",
+      "title": "Refresh frequency",
+      "question": "Is the refresh frequency adapted and defined on visitors needs?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": true,
+      "report_mapping": ["javascript-audit", "network-infra-audit"],
+      "default_answer": true,
+      "default_description": "Verify via network inspection — check for polling requests, WebSocket connections, or auto-refresh meta tags; data should only be fetched on user action, not on a timer"
+    },
+    {
+      "id": "3.6.a",
+      "wsg_id": "4.11.a",
+      "title": "Lowest requirements",
+      "question": "Did you select an infrastructure meeting with minimal specifications business requirements in terms of performance and availability?",
+      "type": "Boolean",
+      "answers": null,
+      "automatable": "partial",
+      "report_mapping": ["carbon-performance-audit", "network-infra-audit"],
+      "default_answer": true,
+      "default_description": "Partially verifiable — can check for CDN usage, multi-region headers, and over-provisioning signals; whether the infrastructure tier matches actual business needs requires human review"
+    }
+  ]
+}
