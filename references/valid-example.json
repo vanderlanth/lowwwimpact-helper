@@ -1,0 +1,293 @@
+{
+  "meta": {
+    "url": "https://www.buhlergroup.com/global/en/homepage.html",
+    "urls": [
+      "https://www.buhlergroup.com/global/en/homepage.html",
+      "https://www.buhlergroup.com/global/en/product-families/AeroDry_Conveyor_Dryer.html",
+      "https://www.buhlergroup.com/global/en/industries/coffee.html",
+      "https://www.buhlergroup.com/global/en/stories/inspiration-hub/co2e-quantification-program.html"
+    ],
+    "date": "2026-05-27",
+    "lighthouse": "standalone",
+    "criteria_version": "lowwwimpact v1",
+    "total_criteria": 27,
+    "evaluated": 24,
+    "skipped_subjective": 2,
+    "na": 1
+  },
+  "evaluation": [
+    {
+      "id": "1.1.b",
+      "type": "checkboxes",
+      "question": "Were the needs of the planet and ecological limits taken into account when developing the idea and project?",
+      "answer": null,
+      "note": "Too subjective — requires knowledge of team training records, client impact mapping exercises, and improvement strategy documents. Cannot be assessed from technical inspection alone; human reviewer must confirm."
+    },
+    {
+      "id": "1.2.a",
+      "type": "checkboxes",
+      "question": "Are design choices (focus on decorative assets, user-journey and user interactions) relevant to UX and benefit the comprehension of the content?",
+      "answer": ["Decorative elements do not create readability issues."],
+      "note": "Partial — readability is not impaired by images across the 4 pages inspected; image overlays are used consistently for product photography with adequate text contrast in most areas. Whether every decorative element adds content value requires human review. User interactions rely on 9–15 custom modal components (per page) rather than native browser patterns, which may introduce usability inconsistencies; the third option is left for the reviewer to assess directly.",
+      "recommended": true
+    },
+    {
+      "id": "1.3.c",
+      "type": "checkboxes",
+      "question": "Is your product exempt of page tracking removed or limited to what is really necessary?",
+      "answer": [
+        "There is no unconsented page tracking in my product, this means a presence of a functional cookie bar.",
+        "Users are be able to stop unwanted website tracking, this means the cookie settings can be accessed from the website."
+      ],
+      "note": "Partial — a cookie consent banner (consent.cookie-script.com) is present on all pages and cookie settings are accessible via a privacy link. Adobe Analytics (omtrdc.net), Adobe Audience Manager (demdex.net), and Adobe Advertising (everesttech.net) all load on every page; whether they are blocked before consent is granted cannot be confirmed from static inspection. Whether the full stack of three Adobe tracking products is truly necessary, or whether unused tracking has been removed, requires human review of the analytics configuration."
+    },
+    {
+      "id": "1.4.a",
+      "type": "checkboxes",
+      "question": "Are the images creating a plus-value on the website without creating legibility issues?",
+      "answer": ["Images do not impair legibility."],
+      "note": "Partial — product and industrial photography is used consistently across all 4 pages and does not impair legibility or text readability. Whether every image is essential and informative (vs. decorative padding) requires editorial review; on the homepage and coffee page, background hero images covering full viewport sections may be partially decorative. The 'informative' option is left for the human reviewer."
+    },
+    {
+      "id": "1.4.b",
+      "type": "checkboxes",
+      "question": "Are the images displayed optimally, taking into account the different screen resolutions, recent technologies and the loading time?",
+      "answer": [
+        "Images are work in all browser, providing alternatives (transcripts, other file formats) when not compatible.",
+        "Images are self-hosted."
+      ],
+      "note": "Fail — 0 WebP or AVIF sources detected across all 4 pages (83, 94, 68, 31 images respectively); all images are served as JPEG or PNG via <picture> elements used for art direction only, not format selection. 0 srcset attributes means no responsive image sizing — all viewports receive the same resolution. Images are served from dam.buhlergroup.com (Bühler's own DAM), which counts as self-hosted. Add WebP/AVIF sources to every <picture> element and implement srcset with sizes on all <img> tags; converting images to WebP alone would reduce image payload by ~35–50%."
+    },
+    {
+      "id": "1.4.c",
+      "type": "boolean",
+      "question": "Is lazy loading used to ensure that image assets are only loaded when they are needed?",
+      "answer": true,
+      "note": "Pass — lazy loading is applied consistently across 3 of 4 pages (100% of below-fold images on AeroDry, Coffee, CO2e). On the homepage, 33 of 39 below-fold images use loading=\"lazy\" (85%); the 6 exceptions are above the lazy-load threshold or in a hero section. The overall implementation is sound and no systemic omissions were found.",
+      "recommended": true
+    },
+    {
+      "id": "1.4.d",
+      "type": "boolean",
+      "question": "Have you provided text alternatives for your users to access an image?",
+      "answer": false,
+      "note": "Fail — empty alt attributes found on non-decorative images across all pages: 7/83 on homepage, 3/46 on AeroDry, 24/59 on coffee (40%), 1/31 on CO2e. The coffee industry page is the most impacted, with nearly half of non-decorative images missing alt text. Add descriptive alt text to all product, equipment, and content images; images used purely as decoration should have alt=\"\" and role=\"presentation\"."
+    },
+    {
+      "id": "1.5.a",
+      "type": "checkboxes",
+      "question": "Are video and audio content displayed adapted to the user's needs?",
+      "answer": [
+        "Media content are essential and informative.",
+        "Media content do not autoplay.",
+        "Media content have controls to paused and muted.",
+        "Media content do not impair legibility."
+      ],
+      "note": "Pass — no native <video> or <audio> elements are present on any of the 4 pages. YouTube embeds appear on the homepage (1) and coffee page (5); none include autoplay parameters in their src URLs, YouTube's player provides pause/mute controls, and the embeds do not obstruct text content. Full points awarded since native media is absent and embed behaviour meets the criteria."
+    },
+    {
+      "id": "1.5.b",
+      "type": "checkboxes",
+      "question": "Is the correct method being used to play a video or sound?",
+      "answer": [
+        "Media content are work in all browser, providing alternatives (transcripts, other file formats) when not compatible."
+      ],
+      "note": "Fail — YouTube embeds are present on the homepage and coffee page but load via external youtube.com iframes. They are not self-hosted, no WebM sources are available in the HTML, and no multiple-quality sources are declared (YouTube handles adaptive streaming internally but this is not under site control). Migrate YouTube videos to self-hosted WebM/MP4 with multiple bitrate sources, or at minimum use youtube-nocookie.com consistently (the homepage uses it, coffee does not). Self-hosting is the only way to satisfy the 'self-hosted' and 'multiple sizes' options."
+    },
+    {
+      "id": "1.5.c",
+      "type": "boolean",
+      "question": "Is there a loading mechanism to ensure that video and sound assets are only loaded when they are needed, without pre-loading?",
+      "answer": false,
+      "note": "Fail — YouTube iframes on the homepage (youtube-nocookie.com) and coffee page (5 x youtube.com) all have src attributes set at page load, causing YouTube's player scripts and tracking to load immediately without user interaction. No lite-youtube, click-to-load wrappers, or data-src lazy-loading is used. Implement the lite-youtube-embed web component or a custom click-to-play poster image pattern; this would eliminate all YouTube-related network requests until the user explicitly clicks to play."
+    },
+    {
+      "id": "1.5.d",
+      "type": "checkboxes",
+      "question": "Have you provided media alternatives for your users to access a media?",
+      "answer": ["Subtitles are available."],
+      "note": "Partial — YouTube provides subtitle/caption support for videos that have them enabled; the DOM <track> check found no native track elements (expected, as embeds handle this internally). Whether the specific embedded videos have captions enabled on YouTube requires manual verification. The 'awareness of less appropriate size' and 'transcript alternative' options cannot be confirmed from inspection and are left for the reviewer."
+    },
+    {
+      "id": "1.6.b",
+      "type": "checkboxes",
+      "question": "Animations are behaving in a way that:",
+      "answer": [
+        "Allows users to read and navigate the website without legibility issues.",
+        "Allows browsers and devices to run without frame drops due to overloading.",
+        "Allows users to have a similar experience without information loss no matter the internet speed, device or browser they have."
+      ],
+      "note": "Pass — 0 CSS animation rules or animated elements detected across all 4 pages. All pages include a prefers-reduced-motion media query in their stylesheets, confirming the design system respects user motion preferences. No GIF files or JS-driven animations were observed. Full points awarded."
+    },
+    {
+      "id": "1.9.d",
+      "type": "boolean",
+      "question": "Are user tests regularly used to validate the assumptions?",
+      "answer": null,
+      "note": "Too subjective — requires knowledge of the team's user testing practices, survey cadence, and validation workflow. Cannot be assessed from technical inspection alone; human reviewer must confirm."
+    },
+    {
+      "id": "1.10.b",
+      "type": "boolean",
+      "question": "Is the user's experience also guaranteed on mobile devices without any loss?",
+      "answer": true,
+      "note": "Pass — all 4 pages include the standard viewport meta tag (width=device-width, initial-scale=1). CSS media queries are present in the stylesheets, and no horizontal overflow was detected in the Playwright sessions. Responsive layout is correctly configured."
+    },
+    {
+      "id": "2.1.a",
+      "type": "checkboxes",
+      "question": "Did you set up and monitored performance goals?",
+      "answer": [],
+      "note": "Fail — all pages significantly exceed the 1.5 MB sustainability budget: homepage 3.8 MB initial / 8.9 MB deferred, AeroDry 10.9 MB, Coffee 8.8 MB, CO2e 2.1 MB. Lighthouse performance scores are 29, 47, 30, and 76 respectively; three of four pages score critically low. There is no evidence of a page weight budget being enforced. Establish a CI-enforced budget (target: < 1.5 MB per page), instrument Core Web Vitals monitoring, and test on simulated 3G connections before deploying new pages."
+    },
+    {
+      "id": "2.2.a",
+      "type": "checkboxes",
+      "question": "Did you minify your code?",
+      "answer": ["Javascript"],
+      "note": "Fail — the HTML response is 6,225 lines, not minified. The main CSS bundle (clientlibs-base.min.css) has 6,411 lines despite its .min suffix — it is named as minified but contains uncompressed CSS with full whitespace and line breaks. A secondary CSS file (content.min.css) is genuinely minified at 1 line. The only confirmed JS file checked (AppMeasurement.min.js) is minified at 3 lines. Data files could not be verified due to CORS restrictions. Minify HTML output at the server/CMS level, and run the main CSS bundle through a true minifier (cssnano, CleanCSS) to strip whitespace."
+    },
+    {
+      "id": "2.3.a",
+      "type": "checkboxes",
+      "question": "What kind of accessibility test have you performed on your product?",
+      "answer": [
+        "Online accessibility checker such as Lighthouse",
+        "WCAG or RGAA Audit"
+      ],
+      "note": "Pass — Lighthouse accessibility averaged 82.75/100 across the 4 pages (78, 87, 80, 86), meeting the ≥ 80 threshold. axe-core WCAG 2.1 AA testing averaged a 79% pass rate across pages (80%, 80%, 80%, 75%), meeting the ≥ 65% threshold. The single recurring violation is color-contrast (serious impact, 14–19 instances per page), consistent across all pages and likely stemming from a shared design-token issue. See axe-core-report.md. 'User usability test' option requires human confirmation."
+    },
+    {
+      "id": "2.5.a",
+      "type": "boolean",
+      "question": "Are third-party content placed behind a facade (click-to-load mechanism) feature?",
+      "answer": false,
+      "note": "Fail — YouTube iframes on the homepage (1 embed via youtube-nocookie.com) and coffee industry page (5 embeds via youtube.com) all load immediately with a live src attribute, triggering YouTube player scripts and tracking without any user interaction. No lite-youtube web component, click-to-load poster pattern, or data-src lazy-loading is implemented. Implement the lite-youtube-embed pattern for all video embeds; this eliminates all YouTube-side requests until the user clicks play."
+    },
+    {
+      "id": "2.5.c",
+      "type": "numeric",
+      "question": "How many third-party dependencies could you technically self-host to limit dependencies?",
+      "answer": 2,
+      "note": "Partial — the site loads 5–6 distinct third-party domains per page. The majority (dam.buhlergroup.com, btube.buhlergroup.com, buhlergroup.demdex.net, buhlergroup.sc.omtrdc.net) are Bühler-controlled subdomains and are not true third parties. The two technically self-hostable external dependencies are: consent.cookie-script.com (the consent management platform, replaceable with a self-hosted CMP such as Klaro or Cookieconsent) and www.recaptcha.net (replaceable with a self-hosted or privacy-preserving alternative such as hCaptcha or friendly-captcha). No Google Fonts or public CDN library resources were detected."
+    },
+    {
+      "id": "2.7.b",
+      "type": "checkboxes",
+      "question": "The technologies used are:",
+      "answer": [
+        "Stable",
+        "Secure",
+        "Appropriate for the products functionalities.",
+        "Appropriate based on the allowed ressources (human, time, budget and knowledge) given to create the product."
+      ],
+      "note": "Partial — the stack appears to be Adobe Experience Manager (AEM) based on Adobe Analytics/Audience Manager integration, served via Apache with CloudFront CDN. AEM is an enterprise-grade, stable, and secure platform appropriate for a global B2B site of Bühler's scale. HTTPS is enforced. No deprecated framework versions or known CVEs were detected from headers. Whether it is 'the most efficient language' is a subjective architectural question left for the reviewer."
+    },
+    {
+      "id": "2.8.a",
+      "type": "numeric",
+      "question": "How many custom components could have been replaced with a native feature of the browser?",
+      "answer": 3,
+      "note": "Partial — 9–15 custom modal components (class containing 'modal', role='dialog' without <dialog> element) were found on every page, with 0 native <dialog> elements in use. 0 <details>/<summary> elements were found, suggesting accordion and expandable content patterns are implemented in JavaScript. Estimated 3 component types could be migrated to native HTML: (1) modal dialogs → <dialog>, (2) accordion/expand panels → <details>/<summary>, (3) tooltip patterns → the Popover API. Actual count may be higher; a full component audit is needed."
+    },
+    {
+      "id": "3.1.a",
+      "type": "checkboxes",
+      "question": "Does your hosting service:",
+      "answer": [],
+      "note": "Fail — www.buhlergroup.com is not verified green by the Green Web Foundation (checked 2026-05-27, result: green=false). The site is served via Apache with AWS CloudFront as the CDN layer. AWS has published sustainability commitments and is working toward 100% renewable energy, but is not currently verified green for this domain in the GWF database. No sustainability certifications or public metrics were found in response headers. Consider migrating to a GWF-verified green host, or working with the current hosting provider to obtain and publish verifiable renewable energy certificates."
+    },
+    {
+      "id": "3.1.e",
+      "type": "boolean",
+      "question": "Is your hosting provider geolocated accordingly to your audience location?",
+      "answer": false,
+      "note": "Fail — AWS CloudFront CDN is detected (via header confirms cloudfront.net edge routing). Per scoring rules, CDN presence with a non-green provider fails this criterion: a global CDN adds always-on infrastructure that is not sustainability-compliant when not powered by verified renewable energy. Bühler is a Swiss company primarily serving industrial customers in Europe and Asia; evaluate whether a CDN is geographically necessary or whether serving directly from an EU-located green origin server would suffice for the primary audience."
+    },
+    {
+      "id": "3.2.a",
+      "type": "checkboxes",
+      "question": "Is your server configured to render cached version of your content?",
+      "answer": [],
+      "note": "Fail — Cache-Control headers are absent (null) for HTML, CSS, and image resources sampled across the homepage. Only web fonts returned a cache header (max-age=86400, public — 1 day). The main stylesheet (clientlibs-base.min.css) and sampled images have no Cache-Control or Expires headers, meaning every visit triggers fresh downloads of all static assets. Configure long-lived max-age (at minimum 1 year with cache-busting filenames) for CSS, JS, images, and fonts; implement ETags and conditional requests for HTML pages."
+    },
+    {
+      "id": "3.3.a",
+      "type": "range",
+      "question": "Which percentage of your website bandwidth usage is compressed when travelling over the network?",
+      "answer": 80,
+      "note": "Pass — the Performance API reported 23,089 KB decoded vs 4,657 KB transferred on the homepage, yielding an 80% compression ratio. Content-Encoding: gzip is confirmed in response headers. Brotli (which typically achieves 15–20% better compression than gzip for text assets) is not enabled; upgrading to Brotli on the Apache/CloudFront layer would push compression toward 85–90%."
+    },
+    {
+      "id": "3.5.a",
+      "type": "boolean",
+      "question": "Is the refresh frequency adapted and defined on visitors needs?",
+      "answer": true,
+      "note": "Pass — no meta[http-equiv=refresh] tag was detected on any page. No WebSocket connections were observed. The 14 XHR/fetch calls on the homepage are attributable to one-shot initialisation requests (Adobe Analytics beacon, consent management setup, reCaptcha), not continuous polling. Data is fetched on user action or page load, not on a recurring timer."
+    },
+    {
+      "id": "3.6.a",
+      "type": "boolean",
+      "question": "Did you select an infrastructure meeting with minimal specifications business requirements in terms of performance and availability?",
+      "answer": false,
+      "note": "Fail — AWS CloudFront CDN is detected via the Via response header (cloudfront.net). A CDN adds a continuously running global edge infrastructure layer on top of the origin server. Per the scoring rule, CDN presence automatically fails this criterion because the additional infrastructure layer is always-on and cannot be verified as geographically necessary. Evaluate whether Bühler's audience distribution genuinely requires a global CDN; if the primary audience is Europe and Asia-Pacific, serving from one or two well-located origin servers (ideally green) would eliminate the CDN infrastructure overhead."
+    }
+  ],
+  "pages": {
+    "page-1": {
+      "url": "https://www.buhlergroup.com/global/en/homepage.html",
+      "title": "Bühler Group | Innovations for a better world",
+      "performance": 29,
+      "accessibility": 78,
+      "best_practices": 50,
+      "seo": 77,
+      "initial_weight_kb": 3776,
+      "deferred_weight_kb": 8907
+    },
+    "page-2": {
+      "url": "https://www.buhlergroup.com/global/en/product-families/AeroDry_Conveyor_Dryer.html",
+      "title": "AeroDry Conveyor Dryer | Bühler Group",
+      "performance": 47,
+      "accessibility": 87,
+      "best_practices": 77,
+      "seo": 77,
+      "initial_weight_kb": 10912,
+      "deferred_weight_kb": 11029
+    },
+    "page-3": {
+      "url": "https://www.buhlergroup.com/global/en/industries/coffee.html",
+      "title": "Coffee Processing Equipment | Coffee Manufacturing | Bühler Group",
+      "performance": 30,
+      "accessibility": 80,
+      "best_practices": 73,
+      "seo": 69,
+      "initial_weight_kb": 8755,
+      "deferred_weight_kb": 10167
+    },
+    "page-4": {
+      "url": "https://www.buhlergroup.com/global/en/stories/inspiration-hub/co2e-quantification-program.html",
+      "title": "What's your footprint? | Inspiration Hub | Bühler Group",
+      "performance": 76,
+      "accessibility": 86,
+      "best_practices": 77,
+      "seo": 77,
+      "initial_weight_kb": 2073,
+      "deferred_weight_kb": 2344
+    }
+  },
+  "lighthouse_recap": "Performance is the critical weak point (avg 45/100 across 4 pages; 29 and 30 on homepage and coffee). Pages range from 2 MB to 11 MB — 3× to 7× over the 1.5 MB sustainability budget. Root causes confirmed by criteria: 0 WebP/AVIF images (1.4.b), no responsive srcset sizing, unminified HTML at 6,225 lines (2.2.a), and unminified main CSS bundle despite a .min filename. Running /image-optim and /performance-optim would address the largest weight contributors.",
+  "recommendations": {
+    "executive_summary": "Bühler's site fails on the three highest-impact sustainability dimensions: asset weight, caching, and hosting. Three of four pages exceed the 1.5 MB budget by 3–7×. No Cache-Control headers on CSS or images means every visit re-downloads all static assets. Hosting is not verified green. Quick wins exist: WebP conversion, cache headers, and video facades. Cookie consent, mobile responsiveness, animation discipline, and compression are genuine strengths.",
+    "top_5": ["3.2.a", "1.4.b", "2.2.a", "2.1.a", "1.5.b"]
+  },
+  "journeys": {
+    "journey-1": {
+      "description": "From the homepage, find the Inspection Carat service page",
+      "pages": [
+        { "url": "https://www.buhlergroup.com/global/en/homepage.html", "name": "Bühler Group", "kb": 3903 },
+        { "url": "https://www.buhlergroup.com/global/en/services.html", "name": "Services", "kb": 5151 },
+        { "url": "https://www.buhlergroup.com/content/buhlergroup/global/en/services/maintenance/carat-inspection-services.html", "name": "Carat Inspection Services", "kb": 473 }
+      ]
+    }
+  }
+}
