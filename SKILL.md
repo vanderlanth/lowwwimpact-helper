@@ -41,6 +41,14 @@ If the user doesn't provide optional inputs, use reasonable defaults and note as
 
 ## Modes of Operation
 
+### Mode 0: Init / Project Setup
+
+Triggered when the user says "init", "setup", "install in this project", or "lowwwimpact init".
+Wires the skill into the current project with the fewest manual steps: copies the fix commands
+into `<project>/.claude/commands/` and adds the companion `@import` to `CLAUDE.md`. Runs from a
+bare clone because the skill is auto-discovered from `.claude/skills/`. See the **Init Workflow**
+below. Also available as `/lowwwimpact-init` once the commands are installed.
+
 ### Mode 1: Review
 
 Triggered when the user provides a URL. Browses the live site, runs 6 parallel audit agents,
@@ -157,8 +165,9 @@ live site.
 
 ### Complete Fix Command Catalogue
 
-These commands live in `commands/` in this repository and are symlinked to `~/.claude/commands/`
-during installation. The skill references them by name — it does not contain fix logic itself.
+These commands live in `commands/` in this repository. Init (Mode 0) copies them into the
+project's `.claude/commands/`. The skill references them by name — it does not contain fix logic
+itself.
 
 | Command | Domain |
 |---------|--------|
@@ -175,6 +184,37 @@ during installation. The skill references them by name — it does not contain f
 | `/compatibility-optim` | Progressive enhancement, @supports, polyfills, degradation |
 | `/seo-optim` | Titles, descriptions, canonical, Open Graph, JSON-LD |
 | `/measure-page-weight` | Pre-cache page weight + Lighthouse scores to `workspace/page-weights.json` |
+| `/lowwwimpact-init` | Project setup: copy fix commands to `.claude/commands/` + wire companion `@import` into `CLAUDE.md` |
+
+---
+
+## Init Workflow (Mode 0)
+
+Finishes per-project setup after the skill folder has been cloned into
+`<project>/.claude/skills/lowwwimpact-helper/`. Idempotent — safe to re-run after an update.
+
+1. **Resolve the skill directory** — `<project>/.claude/skills/lowwwimpact-helper/`. If it is not
+   present, stop and tell the user to clone it first.
+2. **Copy the fix commands to the project** — plain-copy `<skill>/commands/*.md` into
+   `<project>/.claude/commands/` (create the directory if needed; overwrite existing files so
+   updates refresh). This includes `lowwwimpact-init.md` itself.
+3. **Wire the companion block into `CLAUDE.md`** — ensure `<project>/CLAUDE.md` exists (create it
+   if missing). If it does not already contain `@.claude/skills/lowwwimpact-helper/companion.md`,
+   append:
+
+   ```markdown
+   ## Sustainable-by-default (lowwwimpact companion)
+
+   @.claude/skills/lowwwimpact-helper/companion.md
+   ```
+
+   Never add the import line twice.
+4. **Report** — list the commands copied and whether the companion import was added or was already
+   present.
+
+Everything installs at the **project** level — nothing is written to `~/.claude`. To update later,
+re-copy the skill folder and re-run this workflow to refresh the copied commands; `companion.md`
+updates automatically through the `@import`.
 
 ---
 
@@ -820,6 +860,7 @@ workspace/
 10. In fix mode (Mode 3): load evaluation JSON + sustainability report, build fix index, research references via WebSearch, write `workspace/fix-plan.md`
 11. In specs mode (Mode 4): detect whether Figma URLs are present; if yes spawn Figma Specs agent, if no spawn Code Specs agent; write `workspace/dev-specs.md`
 12. In designer eco-review mode (Mode 5): detect whether Figma URLs are present; if yes spawn Eco-Designer Review agent, if no spawn Code Eco-Review agent; write `workspace/eco-review.md` and export PDF
+13. In init mode (Mode 0): run the **Init Workflow** — copy `commands/*.md` into the project's `.claude/commands/` and add the companion `@import` to `CLAUDE.md` (idempotent). Do not run any audit agent.
 
 ---
 

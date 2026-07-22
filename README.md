@@ -10,6 +10,7 @@ Five modes of operation:
 
 | Mode | Trigger | Prompt example | Output |
 |------|---------|----------------|--------|
+| **0 - Init** | Say "init" / "setup" / "install in this project" | `Initialize lowwwimpact in this project` (or `/lowwwimpact-init` once installed) | Fix commands copied into `.claude/commands/` + companion block wired into `CLAUDE.md` |
 | **1 - Review** | Provide a URL | `Use /lowwwimpact-helper in mode 1 to review https://www.liip.ch` | Sustainability report with carbon grade, page weight breakdown, and prioritized findings |
 | **2 - Evaluate** | Say "evaluate" / "lowwwimpact" / "assessment" / "criteria" + URL. Prompts for 1-2 optional user journeys before starting. | `Use /lowwwimpact-helper in mode 2 to evaluate https://www.liip.ch. User journey: from the homepage, find a blog post and read it.` | JSON assessment of 27 lowwwimpact criteria with pass/fail/partial answers, plus per-journey page weight data. Works standalone — run `/measure-page-weight <url>` first for best accuracy, or provide Mode 1 output for full evidence. |
 | **3 - Fix** | Say "fix" / "fix plan" | `Use /lowwwimpact-helper in mode 3 to generate a fix plan` | Persistent `fix-plan.md` ranked by KB savings, with criteria IDs and curated web references. Requires Mode 1 + Mode 2 output. |
@@ -44,31 +45,101 @@ Fully independent of Modes 1-4. Analyzes 2-3 screens against eco-design principl
 - **Figma frames:** Provide 2-3 `figma.com` frame URLs — uses the Figma MCP for visual and structural analysis
 - **Code project:** Provide no URLs — identifies 2-3 main page templates in the current project and treats each as a screen
 
+## Auditing pages behind a login
+
+Modes that measure page weight (Evaluate, and the `/measure-page-weight` command) can audit pages
+that sit behind authentication. You provide credentials once; the skill logs in, saves the session,
+and reuses it for every measurement.
+
+**1. Supply credentials via a `.env` file.** Place a `.env` at the project root (or the workspace
+parent). The skill reads variables matching `*_USER` / `*_LOGIN` / `*_EMAIL` for the username and
+`*_PASS` / `*_PASSWORD` for the password:
+
+```env
+SITE_USER=you@example.com
+SITE_PASS=your-password
+```
+
+If no matching variables are found, the skill asks for the username and password interactively.
+
+**2. Run an audit.** On the first run the skill detects the login redirect, logs in, and saves the
+session to `workspace/auth-state.json` (cookies + per-origin localStorage, Playwright
+`storageState` format). Later measurements load it automatically — no re-login. For a public site
+this is a no-op and no `auth-state.json` is written.
+
+**3. Verify auth in isolation first (recommended).** Before a full evaluation, confirm login +
+measurement work on a protected page:
+
+```
+evaluate --debug https://example.com/dashboard
+```
+
+This runs auth + weight/Lighthouse measurement only, writes `workspace/debug-weights.json`, and
+prints a per-page summary — nothing else. If measurement lands on the login page, re-run to
+overwrite `workspace/auth-state.json`.
+
+> Keep `.env` and `workspace/auth-state.json` out of version control — they hold credentials and a
+> live session.
+
 ## Installation
 
-Clone into your skills directory:
+Install **per project** — the skill, its fix commands, and the companion guidance all live in the
+repo and are versioned with it, so teammates inherit the same behavior. Setup is two steps:
+clone → init.
 
-```bash
-# Cursor
-git clone https://gitlab.liip.ch/nicolas.lanthemann/lowwwimpact-helper.git ~/.cursor/skills/lowwwimpact-helper
-
-# Claude Code
-git clone https://gitlab.liip.ch/nicolas.lanthemann/lowwwimpact-helper.git ~/.claude/skills/lowwwimpact-helper
-```
-
-Then symlink the companion commands so they appear in your commands list:
+**Step 1 — Clone the skill into the project** (from the project root):
 
 ```bash
 # Claude Code
-for f in ~/.claude/skills/lowwwimpact-helper/commands/*.md; do
-  ln -sf "$f" ~/.claude/commands/$(basename "$f")
-done
+git clone https://gitlab.liip.ch/nicolas.lanthemann/lowwwimpact-helper.git \
+  .claude/skills/lowwwimpact-helper
 
 # Cursor
-for f in ~/.cursor/skills/lowwwimpact-helper/commands/*.md; do
-  ln -sf "$f" ~/.cursor/commands/$(basename "$f")
-done
+git clone https://gitlab.liip.ch/nicolas.lanthemann/lowwwimpact-helper.git \
+  .cursor/skills/lowwwimpact-helper
 ```
+
+**Step 2 — Initialize the project.** The skill is auto-discovered from `.claude/skills/`, so just
+ask Claude to initialize it:
+
+```
+Initialize lowwwimpact in this project
+```
+
+Init (Mode 0) copies the fix commands into `.claude/commands/` and wires the companion block into
+`CLAUDE.md`. Once the commands are installed, you can re-run it with `/lowwwimpact-init`.
+
+Nothing is written to `~/.claude` — everything stays in the project.
+
+### Companion mode
+
+After init, `CLAUDE.md` imports the companion guidance:
+
+```markdown
+@.claude/skills/lowwwimpact-helper/companion.md
+```
+
+This keeps a light sustainability lens active during normal development: when Claude is about to
+add images, video, fonts, third-party scripts, a new JS dependency, or animation, it offers the
+lower-impact option before implementing. It is a soft nudge (only when Claude writes the code) and
+scoped to those integration moments — for a full audit or deep fix, escalate to the skill modes
+(Review/Evaluate/Fix) or the matching `/xyz-optim` command.
+
+### Updating
+
+Plain copy — re-clone or overwrite the skill folder, then re-run init to refresh the copied
+commands:
+
+```bash
+rm -rf .claude/skills/lowwwimpact-helper
+git clone https://gitlab.liip.ch/nicolas.lanthemann/lowwwimpact-helper.git \
+  .claude/skills/lowwwimpact-helper
+# then, in Claude Code:
+#   /lowwwimpact-init
+```
+
+`companion.md` lives inside the skill folder and is pulled in via the `@import`, so the companion
+guidance updates automatically — no re-paste into `CLAUDE.md`.
 
 ### Prerequisites
 
@@ -91,12 +162,14 @@ lowwwimpact-helper/
 ├── SKILL.md                                    # Machine entry point - the coordinator
 ├── README.md                                   # This file
 ├── CHANGELOG.md
-├── commands/                                   # Companion fix commands (symlinked to ~/.claude/commands/)
+├── companion.md                                # Always-on nudge guidance (imported into project CLAUDE.md)
+├── commands/                                   # Fix commands (copied to <project>/.claude/commands/ by init)
 │   ├── animation-optim.md
 │   ├── cache-compression-optim.md
 │   ├── cms-media-optim.md
 │   ├── compatibility-optim.md
 │   ├── image-optim.md
+│   ├── lowwwimpact-init.md                      # Mode 0 - project setup (copy commands + wire companion)
 │   ├── media-optim.md
 │   ├── measure-page-weight.md                  # Pre-cache page weight + Lighthouse scores
 │   ├── native-feature-optim.md
@@ -156,11 +229,13 @@ workspace/
 
 ## Companion commands
 
-These commands live in `commands/` in this repository and are symlinked to `~/.claude/commands/`
-during installation (see symlink step above). The skill references them by name.
+These commands live in `commands/` in this repository. Init (Mode 0) copies them into the
+project's `.claude/commands/` so they appear in your commands list. The skill references them by
+name.
 
 | Command | Domain |
 |---------|--------|
+| `/lowwwimpact-init` | Project setup: copy fix commands to `.claude/commands/` + wire companion `@import` into `CLAUDE.md` |
 | `/measure-page-weight` | Pre-cache page weight + Lighthouse scores to `workspace/page-weights.json` |
 | `/image-optim` | Image formats, responsive, lazy loading, compression |
 | `/media-optim` | Video/audio: autoplay, preload, formats, facades |
