@@ -3,9 +3,9 @@
 Higher-level design principles for low-carbon websites. Where the per-screen checklist
 (`eco-design-principles-for-designers.md`) catalogs tactical fixes, this file captures the
 *mindset* — the questions a designer asks before a single element is placed. Use it to
-write the closing "Design Sobriety" section of the Mode 4 designer review: map each principle below
-against what was actually found in the analyzed screens, and only surface the ones that
-apply.
+write the closing "Design Sobriety" section of the eco-specs designer review: map each
+principle below against what was actually found in the analyzed screens, and only surface
+the ones that apply.
 
 ---
 

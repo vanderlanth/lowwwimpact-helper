@@ -1,147 +1,167 @@
 # lowwwimpact-helper
 
-An AI agent skill for auditing web sustainability. It browses live websites with Playwright, produces prioritized carbon-impact reports, and evaluates sites against the [lowwwimpact](https://lowwwimpact.com/) assessment criteria. It also generates paired eco-design deliverables — developer specs and a designer review — from Figma frames or directly from a code project.
+A sustainability skill for web projects. It audits live sites with Playwright and evaluates them
+against the [lowwwimpact](https://lowwwimpact.com/) criteria, generates paired eco-design
+deliverables from Figma frames or a codebase, and keeps a light sustainability lens active during
+everyday development.
 
-Built for [Cursor](https://cursor.com/) (Agent Skills) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Skills).
+Plain markdown throughout, so it runs in [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
+[opencode](https://opencode.ai/), and [Cursor](https://cursor.com/) — see
+[Host and model support](#host-and-model-support).
 
-## What it does
+## Modes
 
-Four modes of operation:
+Three modes. Named, not numbered.
 
-| Mode | Trigger | Prompt example | Output |
-|------|---------|----------------|--------|
-| **0 - Init** | Say "init" / "setup" / "install in this project" | `Initialize lowwwimpact in this project` (or `/lowwwimpact-init` once installed) | Fix commands copied into `.claude/commands/` + companion block wired into `CLAUDE.md` |
-| **1 - Review** | Provide a URL | `Use /lowwwimpact-helper in mode 1 to review https://www.liip.ch` | Sustainability report with carbon grade, page weight breakdown, and prioritized findings |
-| **2 - Evaluate** | Say "evaluate" / "lowwwimpact" / "assessment" / "criteria" + URL. Prompts for 1-2 optional user journeys before starting. | `Use /lowwwimpact-helper in mode 2 to evaluate https://www.liip.ch. User journey: from the homepage, find a blog post and read it.` | JSON assessment of 27 lowwwimpact criteria with pass/fail/partial answers, plus per-journey page weight data. Works standalone — run `/measure-page-weight <url>` first for best accuracy, or provide Mode 1 output for full evidence. |
-| **3 - Fix** | Say "fix" / "fix plan" | `Use /lowwwimpact-helper in mode 3 to generate a fix plan` | Persistent `fix-plan.md` ranked by KB savings, with criteria IDs and curated web references. Requires Mode 1 + Mode 2 output. |
-| **4 - Specs & Review** | "specs" / "dev specs" / "eco specs" / "eco review" / "designer review" — with Figma frame URLs or without (inspects current project) | With Figma: `Use /lowwwimpact-helper in mode 4 on these Figma frames: https://figma.com/design/...` · With code: `Use /lowwwimpact-helper in mode 4 for this project` | Two files from one discovery run: developer-facing `dev-specs.md` (technical requirements per element type) and designer-facing `eco-review.md` (per-screen findings against eco-design principles) |
+| Mode | Trigger | Output |
+|------|---------|--------|
+| **Passive** | Always on after install — never invoked | Lower-impact suggestions at the moment you add an image, font, embed, dependency, or animation |
+| **Evaluate** | `/lowwwimpact-evaluate <url>` | `sustainability-report.md` + `lowwwimpact-evaluation.json` |
+| **Eco-Specs** | `/lowwwimpact-eco-specs [figma urls]` | `dev-specs.md` + `eco-review.md` |
 
-### Mode 1 - Review
+### Passive
 
-6 specialized audit agents run in parallel (images, media and fonts, JavaScript, CSS and HTML, network and infrastructure, carbon and performance) then a synthesizer agent produces the final report. Every finding is tagged with the specific fix command to run.
+Installed into the project's `AGENTS.md`, so it is in context for every session without being
+invoked. At integration moments it offers the lower-impact option and points at the relevant block
+of `references/ecodesign-requirements-concise.md`.
 
-### Mode 2 - Evaluate
+It is advisory only. It never blocks, and it proceeds with your choice if you decline. It also only
+fires when the assistant is writing the code — it does not review code you wrote yourself. For that,
+run Evaluate.
 
-Evaluates a site against the 27 MVP criteria from the [W3C Web Sustainability Guidelines](https://w3c.github.io/sustainableweb-wsg/) as curated by the lowwwimpact project. Uses a priority chain for evidence: `workspace/page-weights.json` (from `/measure-page-weight` or Mode 1) → Mode 1 reports → standalone Lighthouse + Playwright inspection. Supports 1-2 user journeys to measure page weight across a real task flow. Outputs a structured JSON file for human review.
+### Evaluate
 
-### Mode 3 - Fix
+One command, one pipeline: crawl the site, run six audit phases in parallel, synthesize a ranked
+report, measure page weight and Lighthouse, then evaluate all 27 lowwwimpact criteria — the MVP set
+from the [W3C Web Sustainability Guidelines](https://w3c.github.io/sustainableweb-wsg/).
 
-Reads `workspace/lowwwimpact-evaluation.json` and `workspace/sustainability-report.md`, builds a fix index ranked by KB savings, searches for authoritative references per fix command, and writes a persistent `workspace/fix-plan.md`.
+Supports 1–2 user journeys to measure cumulative page weight across a real task flow, and pages
+behind a login.
 
-### Mode 4 - Specs & Review
+**Every run measures cold.** There is no caching or artifact reuse: the measurement semantics depend
+on genuine cold loads, and reused numbers would not be comparable between runs.
 
-Fully independent of Modes 1-3. Runs discovery once and writes two audience-specific files from it. There are no flags and no sub-modes — every run produces both.
+`workspace/lowwwimpact-evaluation.json` has a **hard structural contract** defined by
+`references/valid-example.json`. Validate any run with:
 
-**Two input paths:**
-- **Figma frames:** Provide one or more `figma.com` frame URLs — uses the Figma MCP, reading designer annotations first and filling the gaps visually
-- **Code project:** Provide no URLs — greps the current project directory project-wide, then scans 2-3 representative page templates individually as "screens"
+```bash
+python3 scripts/validate-evaluation.py workspace/lowwwimpact-evaluation.json
+```
 
-Either path writes `workspace/element-inventory.json`. Both writers then read that file — nothing is inspected twice:
+`/lowwwimpact-evaluate --debug <url>` is the measurement-only variant — auth plus weight and
+Lighthouse, nothing else. Use it to confirm a login flow works before a full run.
+
+### Eco-Specs
+
+Runs discovery once and writes two audience-specific files from it. No flags — every run produces
+both. No Playwright, no live URL needed.
+
+- **Figma frames:** pass one or more `figma.com` frame URLs. Uses the Figma MCP, reading designer
+  annotations first and filling gaps visually.
+- **Code project:** pass no URLs. Greps the project, then scans 2–3 representative page templates
+  individually as "screens".
+
+Either path writes `workspace/element-inventory.json`; both writers read it, so nothing is inspected
+twice.
 
 | Output | Audience | Content |
 |--------|----------|---------|
-| `dev-specs.md` | Developers | Technical sustainability requirements per detected element type, sourced from `references/ecodesign-requirements-concise.md` with its curated documentation links |
-| `eco-review.md` | Designers | Per-screen findings against the eco-design principles, top cross-screen actions, and a Design Sobriety section drawn from the Sustainable Web Design reference. All findings are design decisions: no code, no developer jargon. |
+| `dev-specs.md` | Developers | Technical requirements per detected element type, from `references/ecodesign-requirements-concise.md` with its curated documentation links |
+| `eco-review.md` | Designers | Per-screen findings against the eco-design principles, top actions, and a Design Sobriety section. Design decisions only — no code, no jargon. |
+
+## Installation
+
+Install **per project**, so the skill and its guidance are versioned with the repo and teammates
+inherit the same behavior. Two steps: clone, then init.
+
+**Step 1 — clone into the project**, at the path your tool expects:
+
+```bash
+# Claude Code
+git clone <repo> .claude/skills/lowwwimpact-helper
+
+# opencode
+git clone <repo> .opencode/lowwwimpact-helper
+
+# Cursor
+git clone <repo> .cursor/skills/lowwwimpact-helper
+```
+
+**Step 2 — initialize:**
+
+```
+Initialize lowwwimpact in this project
+```
+
+Init detects which host it is running under, copies the commands into that host's command directory,
+and injects passive mode into `AGENTS.md` between marker comments. On Claude Code it also adds a
+single `@AGENTS.md` line to `CLAUDE.md` so both files stay in sync. Once the commands are installed
+you can re-run it as `/lowwwimpact-init`.
+
+Nothing is written outside the project.
+
+### Updating
+
+Re-clone or overwrite the skill folder, then re-run `/lowwwimpact-init`. This refreshes both the
+copied commands and the passive block in `AGENTS.md`.
+
+Passive content is **injected rather than imported**, because `@path` imports are Claude Code syntax
+and the `AGENTS.md` convention has no portable import mechanism. The trade-off is that the block
+goes stale until you re-run init.
+
+## Host and model support
+
+Host compatibility and model capability are separate questions.
+
+**Hosts.** Everything is plain markdown. Commands carry no YAML frontmatter, so the same file works
+unchanged in `.claude/commands/`, `.opencode/commands/`, and `.cursor/commands/`. Phases declare
+their inputs and outputs and pass no parameters, so a host without subagents runs them in sequence
+and gets the same result — only slower.
+
+**Models.** The phases are not equally demanding:
+
+| Phase | Instruction weight | Runs on a modest local model? |
+|---|---|---|
+| Each audit phase | ~2k tokens | Yes |
+| Eco-specs inventory and writers | ~2k + 6.5k reference | Yes |
+| **Criteria evaluation** | **~20.5k tokens** before any page data | **No** — needs a large-context, capable model |
+
+The criteria evaluation loads the evaluator instructions plus the 27-criteria file, ingests network
+data, and must emit a strictly-shaped JSON. A small local model will handle eco-specs and the
+individual audits, and will not produce a trustworthy evaluation JSON. Run the validator to find
+out rather than assuming.
 
 ## Auditing pages behind a login
 
-Modes that measure page weight (Evaluate, and the `/measure-page-weight` command) can audit pages
-that sit behind authentication. You provide credentials once; the skill logs in, saves the session,
-and reuses it for every measurement.
-
-**1. Supply credentials via a `.env` file.** Place a `.env` at the project root (or the workspace
-parent). The skill reads variables matching `*_USER` / `*_LOGIN` / `*_EMAIL` for the username and
-`*_PASS` / `*_PASSWORD` for the password:
+**1. Supply credentials via `.env`** at the project root. The skill reads `*_USER` / `*_LOGIN` /
+`*_EMAIL` for the username and `*_PASS` / `*_PASSWORD` for the password:
 
 ```env
 SITE_USER=you@example.com
 SITE_PASS=your-password
 ```
 
-If no matching variables are found, the skill asks for the username and password interactively.
+If no matching variables are found, it asks interactively.
 
 **2. Run an audit.** On the first run the skill detects the login redirect, logs in, and saves the
-session to `workspace/auth-state.json` (cookies + per-origin localStorage, Playwright
-`storageState` format). Later measurements load it automatically — no re-login. For a public site
-this is a no-op and no `auth-state.json` is written.
+session to `workspace/auth-state.json` (Playwright `storageState` format). Later measurements load
+it automatically. On a public site this is a no-op.
 
-**3. Verify auth in isolation first (recommended).** Before a full evaluation, confirm login +
-measurement work on a protected page:
+**3. Verify auth in isolation first (recommended):**
 
 ```
-evaluate --debug https://example.com/dashboard
+/lowwwimpact-evaluate --debug https://example.com/dashboard
 ```
 
-This runs auth + weight/Lighthouse measurement only, writes `workspace/debug-weights.json`, and
-prints a per-page summary — nothing else. If measurement lands on the login page, re-run to
-overwrite `workspace/auth-state.json`.
+Runs auth plus measurement only, writes `workspace/debug-weights.json`, prints a per-page summary.
+If measurement lands on the login page, re-run to overwrite `auth-state.json`.
 
 > Keep `.env` and `workspace/auth-state.json` out of version control — they hold credentials and a
 > live session.
 
-## Installation
+## Prerequisites
 
-Install **per project** — the skill, its fix commands, and the companion guidance all live in the
-repo and are versioned with it, so teammates inherit the same behavior. Setup is two steps:
-clone → init.
-
-**Step 1 — Clone the skill into the project** (from the project root):
-
-```bash
-# Claude Code
-git clone https://gitlab.liip.ch/nicolas.lanthemann/lowwwimpact-helper.git \
-  .claude/skills/lowwwimpact-helper
-
-# Cursor
-git clone https://gitlab.liip.ch/nicolas.lanthemann/lowwwimpact-helper.git \
-  .cursor/skills/lowwwimpact-helper
-```
-
-**Step 2 — Initialize the project.** The skill is auto-discovered from `.claude/skills/`, so just
-ask Claude to initialize it:
-
-```
-Initialize lowwwimpact in this project
-```
-
-Init (Mode 0) copies the fix commands into `.claude/commands/` and wires the companion block into
-`CLAUDE.md`. Once the commands are installed, you can re-run it with `/lowwwimpact-init`.
-
-Nothing is written to `~/.claude` — everything stays in the project.
-
-### Companion mode
-
-After init, `CLAUDE.md` imports the companion guidance:
-
-```markdown
-@.claude/skills/lowwwimpact-helper/companion.md
-```
-
-This keeps a light sustainability lens active during normal development: when Claude is about to
-add images, video, fonts, third-party scripts, a new JS dependency, or animation, it offers the
-lower-impact option before implementing. It is a soft nudge (only when Claude writes the code) and
-scoped to those integration moments — for a full audit or deep fix, escalate to the skill modes
-(Review/Evaluate/Fix) or the matching `/xyz-optim` command.
-
-### Updating
-
-Plain copy — re-clone or overwrite the skill folder, then re-run init to refresh the copied
-commands:
-
-```bash
-rm -rf .claude/skills/lowwwimpact-helper
-git clone https://gitlab.liip.ch/nicolas.lanthemann/lowwwimpact-helper.git \
-  .claude/skills/lowwwimpact-helper
-# then, in Claude Code:
-#   /lowwwimpact-init
-```
-
-`companion.md` lives inside the skill folder and is pulled in via the `@import`, so the companion
-guidance updates automatically — no re-paste into `CLAUDE.md`.
-
-### Prerequisites
-
-**Playwright CLI** used by Modes 1-3 for live site inspection:
+**Playwright CLI** — required by Evaluate only:
 
 ```bash
 npm install -g @playwright/cli@latest
@@ -149,98 +169,94 @@ playwright-cli install-browser
 playwright-cli install --skills
 ```
 
-**Lighthouse CLI** used by Mode 1 for performance, accessibility, best-practices, and SEO scoring. Runs via `npx` - no separate installation needed if Node.js >= 18 is available. Verify: `npx lighthouse --version`.
+**Lighthouse** — runs via `npx`, no install needed with Node.js ≥ 18. Verify:
+`npx lighthouse --version`. If unavailable, scores are omitted and noted.
 
-**Figma MCP** required for Mode 4 when using Figma frame URLs. Not needed when running Mode 4 on a code project. Must be configured in your Claude Code or Cursor settings.
+**Figma MCP** — required by Eco-Specs only when passing Figma frame URLs.
+
+**Python 3** — for the evaluation validator.
 
 ## File structure
 
 ```
 lowwwimpact-helper/
-├── SKILL.md                                    # Machine entry point - the coordinator
-├── README.md                                   # This file
+├── SKILL.md                                    # Entry point and coordinator
+├── README.md
 ├── CHANGELOG.md
-├── companion.md                                # Always-on nudge guidance (imported into project CLAUDE.md)
-├── commands/                                   # Fix commands (copied to <project>/.claude/commands/ by init)
-│   ├── animation-optim.md
-│   ├── cache-compression-optim.md
-│   ├── cms-media-optim.md
-│   ├── compatibility-optim.md
-│   ├── image-optim.md
-│   ├── lowwwimpact-init.md                      # Mode 0 - project setup (copy commands + wire companion)
-│   ├── media-optim.md
-│   ├── measure-page-weight.md                  # Pre-cache page weight + Lighthouse scores
-│   ├── native-feature-optim.md
-│   ├── performance-optim.md
-│   ├── reusable-components-optim.md
-│   ├── seo-optim.md
-│   ├── third-party-optim.md
-│   └── typo-optim.md
-├── agents/
-│   ├── mode-1-review/
-│   │   ├── images-audit.md                     # Image formats, compression, lazy loading
-│   │   ├── media-fonts-audit.md                # Video facades, font loading, animations
-│   │   ├── javascript-audit.md                 # Bundle size, loading strategy, native APIs
-│   │   ├── css-html-audit.md                   # CSS size, semantic HTML, dark mode
-│   │   ├── network-infra-audit.md              # Caching, compression, third-party domains
-│   │   ├── carbon-performance-audit.md         # Page weight, carbon calculation, hosting
-│   │   └── synthesizer.md                      # Merges 6 reports into final assessment
-│   ├── mode-2-evaluate/
-│   │   └── evaluator.md                        # Mode 2 - lowwwimpact criteria assessment
-│   └── mode-4-specs-review/
-│       ├── figma-inventory-agent.md            # Mode 4 (Figma path) - builds element-inventory.json
-│       ├── code-inventory-agent.md             # Mode 4 (code path) - builds element-inventory.json
-│       ├── dev-specs-writer.md                 # Mode 4 - developer specs from the inventory
-│       └── designer-review-writer.md           # Mode 4 - designer review from the inventory
+├── passive.md                                  # Passive mode — injected into project AGENTS.md
+├── scripts/
+│   └── validate-evaluation.py                  # Enforces the evaluation output contract
+├── commands/
+│   ├── lowwwimpact-init.md                     # Install into the current project
+│   ├── lowwwimpact-evaluate.md                 # Run the evaluate pipeline
+│   ├── lowwwimpact-eco-specs.md                # Run the eco-specs pipeline
+│   ├── measure-page-weight.md
+│   └── …12 /xyz-optim fix commands
+├── phases/
+│   ├── evaluate/
+│   │   ├── images-audit.md
+│   │   ├── media-fonts-audit.md
+│   │   ├── javascript-audit.md
+│   │   ├── css-html-audit.md
+│   │   ├── network-infra-audit.md
+│   │   ├── carbon-performance-audit.md
+│   │   ├── synthesizer.md                      # Merges the six reports
+│   │   └── evaluator.md                        # Criteria assessment
+│   └── eco-specs/
+│       ├── figma-inventory.md
+│       ├── code-inventory.md
+│       ├── dev-specs-writer.md
+│       └── designer-review-writer.md
 └── references/
-    ├── lowwwimpact-criteria.json               # 27 MVP criteria with defaults
-    ├── playwright-guide.md                     # Playwright CLI reference for agents
-    ├── report-template.md                      # Report format specification
-    ├── sustainability-checklist.md             # General sustainability checklist
-    ├── carbon-measurement.md                   # SWD carbon model reference
-    ├── code-efficiency.md                      # Code-level efficiency patterns
-    ├── media-optimization.md                   # Image/video/font optimization reference
-    ├── performance-budgets.md                  # Page weight budgets
-    ├── ecodesign-requirements-concise.md       # 41 eco-design requirement blocks with curated links (Mode 4 dev specs)
-    ├── eco-design-principles-for-designers.md  # Per-screen eco-design checklist (Mode 4 designer review)
-    └── design-sobriety-principles.md           # Design Sobriety principles reference (Mode 4 designer review)
+    ├── lowwwimpact-criteria.json               # The 27 criteria
+    ├── valid-example.json                      # Output contract — never edit
+    ├── ecodesign-requirements-concise.md       # 41 requirement blocks with curated links
+    ├── eco-design-principles-for-designers.md
+    ├── design-sobriety-principles.md
+    ├── auth-measure-pipeline.md                # Shared auth + measurement
+    ├── playwright-guide.md
+    ├── report-template.md
+    ├── sustainability-checklist.md
+    ├── carbon-measurement.md
+    ├── code-efficiency.md
+    ├── media-optimization.md
+    └── performance-budgets.md
 ```
 
 ## Workspace outputs
 
-Each mode writes to a `workspace/` directory in the current project:
-
 ```
 workspace/
-├── discovery.md                     # Site structure + resource inventory (Mode 1)
-├── screenshots/                     # Visual evidence (Mode 1)
-├── agents/                          # Per-agent audit reports (Mode 1)
-├── sustainability-report.md         # Final synthesized report (Mode 1)
-├── page-weights.json                # Cached page weights + Lighthouse scores (Mode 1 or /measure-page-weight)
-├── lowwwimpact-evaluation.json      # Criteria assessment for human review (Mode 2)
-├── fix-plan.md                      # Ranked fix plan with references (Mode 3)
-├── element-inventory.json           # Shared discovery output, consumed by both writers (Mode 4)
-├── dev-specs.md                     # Developer-facing eco-design specs (Mode 4)
-└── eco-review.md                    # Designer-facing eco-review (Mode 4)
+├── discovery.md                     # Site structure + resource inventory (Evaluate)
+├── phases/                          # Per-phase audit reports (Evaluate)
+├── page-weights.json                # Page weights + Lighthouse scores (Evaluate)
+├── sustainability-report.md         # Ranked audit report (Evaluate)
+├── lowwwimpact-evaluation.json      # Criteria assessment — hard contract (Evaluate)
+├── debug-weights.json               # Measurement-only output (--debug)
+├── auth-state.json                  # Saved login session, when needed
+├── element-inventory.json           # Shared discovery output (Eco-Specs)
+├── dev-specs.md                     # Developer specs (Eco-Specs)
+└── eco-review.md                    # Designer review (Eco-Specs)
 ```
 
-## Companion commands
+## Fix commands
 
-These commands live in `commands/` in this repository. Init (Mode 0) copies them into the
-project's `.claude/commands/` so they appear in your commands list. The skill references them by
-name.
+Copied into your host's command directory by init. The skill references them by name — it contains
+no fix logic itself.
 
 | Command | Domain |
 |---------|--------|
-| `/lowwwimpact-init` | Project setup: copy fix commands to `.claude/commands/` + wire companion `@import` into `CLAUDE.md` |
-| `/measure-page-weight` | Pre-cache page weight + Lighthouse scores to `workspace/page-weights.json` |
+| `/lowwwimpact-init` | Install into the current project |
+| `/lowwwimpact-evaluate` | Run the evaluate pipeline |
+| `/lowwwimpact-eco-specs` | Run the eco-specs pipeline |
+| `/measure-page-weight` | Page weight + Lighthouse → `workspace/page-weights.json` |
 | `/image-optim` | Image formats, responsive, lazy loading, compression |
 | `/media-optim` | Video/audio: autoplay, preload, formats, facades |
 | `/cms-media-optim` | CMS upload constraints, auto-processing |
 | `/typo-optim` | WOFF2, subsetting, self-hosting, font-display |
 | `/animation-optim` | GPU-safe properties, prefers-reduced-motion |
-| `/third-party-optim` | Facade pattern for YouTube/Vimeo/Maps/social |
-| `/native-feature-optim` | Replace JS with native HTML/CSS |
+| `/third-party-optim` | Facades for YouTube/Vimeo/Maps/social |
+| `/native-feature-optim` | Native HTML/CSS over JS |
 | `/cache-compression-optim` | Gzip/Brotli, Cache-Control, hashed filenames |
 | `/performance-optim` | Page weight budget, Lighthouse, bundle analysis |
 | `/reusable-components-optim` | Duplicate detection, shared utilities |
@@ -249,8 +265,11 @@ name.
 
 ## Credits
 
-- Criteria based on the [W3C Web Sustainability Guidelines](https://w3c.github.io/sustainableweb-wsg/) and the [lowwwimpact](https://lowwwimpact.com/) assessment framework
-- Designer eco-review principles from [Sustainable Web Design](https://abookapart.com/products/sustainable-web-design) by Tom Greenwood (A Book Apart, 2021)
+- Criteria based on the [W3C Web Sustainability Guidelines](https://w3c.github.io/sustainableweb-wsg/)
+  and the [lowwwimpact](https://lowwwimpact.com/) assessment framework
+- Designer eco-review principles from
+  [Sustainable Web Design](https://abookapart.com/products/sustainable-web-design) by Tom Greenwood
+  (A Book Apart, 2021)
 - Built at [Liip](https://www.liip.ch/en) as part of our digital sustainability practice
 
 ## License

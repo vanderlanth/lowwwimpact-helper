@@ -16,7 +16,13 @@ compression, caching strategy, and third-party domain count.
 - **url**: The application's entry URL
 - **discovery**: The discovery file with resource inventory and page list
 - **session**: Your Playwright CLI session name (use `-s=network-infra`)
-- **output_dir**: Where to save your findings
+
+## Outputs
+
+Writes **`workspace/phases/network-infra-audit.md`** — Network findings: caching, compression, third-party domains, service worker.
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## Budgets
 
@@ -179,7 +185,7 @@ Navigate to 2-3 pages and check whether caching and compression are consistent a
 
 ### Step 10: Write Findings
 
-Save to `{output_dir}/network-infra-audit.md`:
+Save to `workspace/phases/network-infra-audit.md`:
 
 ```markdown
 # Network & Infrastructure Audit

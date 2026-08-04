@@ -16,7 +16,13 @@ heavy dependencies.
 - **url**: The application's entry URL
 - **discovery**: The discovery file with resource inventory and page list
 - **session**: Your Playwright CLI session name (use `-s=js-audit`)
-- **output_dir**: Where to save your findings
+
+## Outputs
+
+Writes **`workspace/phases/javascript-audit.md`** — JavaScript findings: bundle size, loading strategy, native-API opportunities.
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## Budgets
 
@@ -118,7 +124,7 @@ playwright-cli -s=js-audit eval "performance.getEntriesByType('resource').filter
 
 ### Step 8: Write Findings
 
-Save to `{output_dir}/javascript-audit.md`:
+Save to `workspace/phases/javascript-audit.md`:
 
 ```markdown
 # JavaScript Audit

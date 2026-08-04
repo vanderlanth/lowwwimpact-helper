@@ -7,7 +7,7 @@ JSON assessment file that a human reviewer can verify and submit.
 
 You are a sustainability evaluator that maps technical audit findings to a standardized set
 of assessment criteria. You read the 27 lowwwimpact criteria from a reference file, gather
-evidence from the Mode 1 sustainability report and direct Playwright inspection,
+evidence from the sustainability report and direct Playwright inspection,
 and produce a JSON file where each criterion has a typed answer and a brief note.
 
 Each criterion comes with a `default_answer` and `default_note` that represent the
@@ -17,15 +17,59 @@ keep it and update the note with specifics.
 
 ## Inputs
 
-- **criteria_file**: Path to `references/lowwwimpact-criteria.json`
-- **report_dir**: Path to the workspace with Mode 1 reports — **required**
+- **`references/lowwwimpact-criteria.json`** — the 27 criteria. Required.
+- **`references/valid-example.json`** — **the output contract. Required. Read it before writing
+  anything.** See *Output contract* below.
+- **`workspace/sustainability-report.md`** and the audit reports in `workspace/phases/` — the
+  primary evidence source for criteria.
 - **session**: Your Playwright CLI session name (use `-s=evaluator`)
-- **output_dir**: Where to save the evaluation JSON
 
-**Mode 1 report is optional.** If `workspace/sustainability-report.md` exists, it is used as
-the primary evidence source for criteria. If absent, the evaluator falls back to direct
-Playwright inspection (Step 3) and standalone Lighthouse measurement (Step 3.5). The URL is
-taken from the Mode 1 report when available — otherwise ask the user for it.
+If the audit reports are absent, fall back to direct Playwright inspection (Step 3) and
+standalone Lighthouse measurement (Step 3.5). The URL is taken from the audit report when
+available — otherwise ask the user for it.
+
+## Output contract — read this before writing the JSON
+
+`references/valid-example.json` defines the **exact required structure** of the output. It is a
+contract, not an illustrative sample: the file is consumed downstream and a structural mismatch
+is a failed run, regardless of how good the findings are.
+
+Read that file and match it exactly. The shape:
+
+| Key | Type | Notes |
+|---|---|---|
+| `meta` | object | `url`, `urls[]`, `date`, `lighthouse`, `criteria_version`, `total_criteria`, `evaluated`, `skipped_subjective`, `na` |
+| `evaluation` | **array of 27** | each `{ id, type, question, answer, note }` |
+| `pages` | **object** | keyed `page-1`, `page-2`, … — **not an array** |
+| `lighthouse_recap` | string | |
+| `recommendations` | object | `executive_summary` + `top_5` (exactly 5 entries) |
+| `journeys` | **object** | keyed `journey-1`, … — **not an array** |
+
+The two traps, both of which look wrong and are correct:
+
+- `pages` and `journeys` are **objects keyed by index string**, sitting right next to `evaluation`
+  which genuinely is an array. Do not normalise them into arrays.
+- `lighthouse_recap` and `recommendations` are required top-level keys. Emit them even when the
+  underlying data is thin.
+
+Every per-page object carries all eight fields: `url`, `title`, `performance`, `accessibility`,
+`best_practices`, `seo`, `initial_weight_kb`, `deferred_weight_kb`.
+
+**Verify before reporting done:**
+
+```bash
+python3 scripts/validate-evaluation.py workspace/lowwwimpact-evaluation.json
+```
+
+A non-zero exit means the output is invalid — fix the structure and re-check. Do not present a
+result that fails this.
+
+## Outputs
+
+Writes **`workspace/lowwwimpact-evaluation.json`** — The criteria assessment. **Structure is a hard contract — see Inputs.**
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## Process
 
@@ -131,7 +175,24 @@ Record `{ url, name, kb }` for each page from the `run-code` result.
 
 **Name shortening rule**: take `document.title`, strip the site name suffix (everything after `—` or `|`), then use the first 2–3 meaningful words. Example: `"Running Shoes — Acme Shop"` → `"Running Shoes"`.
 
-> **Scope boundary — KB measurement only**: Journey navigation produces `{ url, name, kb }` entries for the `journeys` output section. Do NOT run Lighthouse on journey pages. Do NOT add any journey URL to `meta.urls` or to the `pages` output section, even if a journey step lands on an explicitly provided URL. Do NOT use evidence gathered from journey pages when evaluating the 27 criteria — only evidence from the explicitly provided URLs (Step 3 Playwright session and Step 2 Mode 1 reports) counts.
+> **Scope boundary — journeys contribute KB, and only KB.**
+>
+> Journey navigation produces exactly one thing: `{ url, name, kb }` entries in the `journeys`
+> output section. That is its entire contribution to the output.
+>
+> Everything else in the output comes from one source — the explicitly provided URLs:
+>
+> | Output area | Sourced from |
+> |---|---|
+> | `meta.urls` | the explicitly provided URLs only |
+> | `pages` | the explicitly provided URLs only |
+> | Lighthouse scores | the explicitly provided URLs only |
+> | The 27 criteria answers | Step 3 Playwright session + Step 2 audit reports, on the provided URLs only |
+> | `journeys` | journey navigation |
+>
+> This holds even when a journey step happens to land on a URL that was also provided explicitly:
+> the journey visit contributes its KB entry, and the provided-URL measurement remains the source
+> for that page's row and scores.
 
 ### Step 1.6: User Validation of Journey Pages
 
@@ -164,7 +225,7 @@ If it **exists**:
 
 If it **does not exist**:
 - Set `lighthouse_pages = null` and `lighthouse_source = null`
-- Continue normally — Step 2 will attempt to parse the machine-readable block from the Mode 1 reports, and Step 3.5 will run if needed
+- Continue normally — Step 2 will attempt to parse the machine-readable block from the audit phase reports, and Step 3.5 will run if needed
 
 ### Step 1.95: Auth Detection and Setup
 
@@ -174,7 +235,7 @@ site it is a no-op and writes nothing.
 
 All subsequent steps read from `workspace/auth-state.json` — no auth state is passed as a parameter.
 
-### Step 2: Load Mode 1 Reports
+### Step 2: Load Audit Phase Reports
 
 **Optional.** If `workspace/sustainability-report.md` does not exist, note that criteria evidence
 will be limited to direct Playwright inspection and proceed — do not stop.
@@ -182,7 +243,7 @@ will be limited to direct Playwright inspection and proceed — do not stop.
 Read:
 
 1. `workspace/sustainability-report.md` — the synthesized report
-2. Individual agent reports in `workspace/agents/`:
+2. Individual agent reports in `workspace/phases/`:
    - `images-audit.md`
    - `media-fonts-audit.md`
    - `javascript-audit.md`
@@ -210,7 +271,7 @@ WebFetch: https://www.w3.org/TR/web-sustainability-guidelines/
 Use the fetched content to:
 
 1. **Resolve ambiguous criteria** — When the lowwwimpact criterion wording is vague or the
-   Mode 1 report evidence is borderline, look up the matching WSG success criterion for a
+   audit report evidence is borderline, look up the matching WSG success criterion for a
    clearer definition of pass/fail.
 
 2. **Supplement `automatable: "partial"` criteria** — For testable options you cannot
@@ -221,7 +282,7 @@ Use the fetched content to:
    success criterion in the note (e.g., "Fails WSG 2.4 — no reduced-motion query detected").
 
 **When to rely on WSG vs. skip:**
-- Use WSG when the Mode 1 report is unavailable or a criterion has insufficient report
+- Use WSG when the audit report is unavailable or a criterion has insufficient report
   evidence.
 - Skip WSG lookup for criteria where Playwright evidence is conclusive (e.g., lazy loading
   count, image format detection).
@@ -233,7 +294,7 @@ Use the fetched content to:
 > **Explicit-URL-only scope**: Open sessions ONLY for the URLs the user explicitly provided in the prompt (the same set that populates `meta.urls`). Journey URLs discovered in Step 1.5 are NOT inspected here — their KB was already captured during journey navigation and belongs only in the `journeys` output section.
 
 > **Note**: If `lighthouse_pages` is still `null` after Steps 1.9 and 2 (no
-> `workspace/page-weights.json` and no Mode 1 Lighthouse data), proceed through Step 3 normally
+> `workspace/page-weights.json` and no carbon-performance Lighthouse data), proceed through Step 3 normally
 > — then run Step 3.5 to collect Lighthouse data directly.
 
 If a live URL is available, open a **fresh browser session per URL** for direct inspection.
@@ -568,7 +629,7 @@ returned an `error` are excluded from the average and flagged in the report.
 
 **Step 3 — Save axe-core results to file**
 
-After running axe-core on all audited URLs, write the full results to `{output_dir}/axe-core-report.md`:
+After running axe-core on all audited URLs, write the full results to `workspace/axe-core-report.md`:
 
 ```markdown
 # axe-core WCAG 2.1 AA Report
@@ -759,7 +820,7 @@ Otherwise:
 1. Compute the average score per category across all pages in `lighthouse_pages` (skip `null` scores).
 2. Identify the weakest category (lowest average). Flag any category averaging below 90.
 3. Cross-reference evidence:
-   - Scan the Mode 1 sustainability report (if available) for findings that relate to the weak categories.
+   - Scan the sustainability report (if available) for findings that relate to the weak categories.
    - Scan the evaluated criteria for any `Fail` or `Partial` answers whose `report_mapping` overlaps with those categories.
 4. Write a single prose string of **at most 600 characters** (spaces included):
    - **If any category averages below 90**: name the weakest area(s) and approximate score(s), point to 1–3 concrete causes found in the report or criteria, optionally name the relevant fix command(s) (e.g. `/performance-optim`).
@@ -791,7 +852,7 @@ Store as `top_5` (array of ID strings).
 #### 2. Write `executive_summary`
 
 - Count: total criteria evaluated (non-null answers), total failing, total passing
-- If a Mode 1 report is available, reference the synthesizer's headline findings for additional context
+- If a audit report is available, reference the synthesizer's headline findings for additional context
 - Write a single prose block of **at most 600 characters** covering:
   - Overall verdict — is the site doing well or not, and why
   - Main failing areas (categories or domains with the most failures)
@@ -812,7 +873,11 @@ Store as `executive_summary` (a string).
 
 **Do not write the file until all boxes are checked.**
 
-Save to `{output_dir}/lowwwimpact-evaluation.json`:
+Save to `workspace/lowwwimpact-evaluation.json`.
+
+**Before writing, re-read `references/valid-example.json` and match its structure exactly** — see
+*Output contract* above. `pages` and `journeys` are objects keyed `page-N` / `journey-N`, not
+arrays. The skeleton below shows field content; the reference file is the authority on shape.
 
 ```json
 {
@@ -887,7 +952,7 @@ Save to `{output_dir}/lowwwimpact-evaluation.json`:
 **STRICT SCHEMA — `meta` object**: The `meta` object must contain ONLY the exact nine keys listed above (`url`, `urls`, `date`, `lighthouse`, `criteria_version`, `total_criteria`, `evaluated`, `skipped_subjective`, `na`). Do not add any extra keys under any circumstances — not for auth notes, report paths, session details, or any other context. Use the exact key names shown: `"na"` (not `"skipped_na"` or `"na_count"`), `"skipped_subjective"` (not `"skipped"`). If you need to document something about the audit conditions, put it in `lighthouse_recap` or a criterion note.
 
 **`meta.lighthouse`** values:
-- `"carbon-performance-audit"` — data came from Mode 1 report (Step 2)
+- `"carbon-performance-audit"` — data came from audit report (Step 2)
 - `"standalone"` — Lighthouse was run directly in Step 3.5
 - `null` — no Lighthouse data available (also omit the `pages` key entirely)
 
@@ -945,4 +1010,4 @@ playwright-cli -s=evaluator close
 
 - `references/lowwwimpact-criteria.json` — the 27 criteria with defaults
 - `references/playwright-guide.md` — Playwright CLI commands for live inspection
-- Mode 1 agent reports — primary evidence source
+- audit phase reports — primary evidence source

@@ -16,7 +16,13 @@ optimizations will yield the highest bandwidth savings.
 - **url**: The application's entry URL
 - **discovery**: The discovery file with resource inventory and page list
 - **session**: Your Playwright CLI session name (use `-s=images-audit`)
-- **output_dir**: Where to save your findings
+
+## Outputs
+
+Writes **`workspace/phases/images-audit.md`** — Image findings: formats, sizing, lazy loading, alt text, total image weight.
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## Budgets
 
@@ -129,7 +135,7 @@ Compare patterns across pages to identify site-wide issues vs. page-specific pro
 
 ### Step 9: Write Findings
 
-Save to `{output_dir}/images-audit.md`:
+Save to `workspace/phases/images-audit.md`:
 
 ```markdown
 # Images Audit

@@ -1,15 +1,84 @@
-# Sustainable Web Review Skill
+# lowwwimpact-helper
 
-A multi-agent sustainability audit system that browses live web applications with Playwright CLI
-and produces a prioritized, actionable report with carbon impact estimates. Every finding maps
-to a specific `/xyz-optim` fix command. Can also evaluate a site against the lowwwimpact
-sustainability criteria, produce a structured JSON assessment for human review, and generate
-paired eco-design deliverables — developer specs and a designer review — from Figma frames or
-directly from a code project.
+A sustainability skill for web projects. It audits a live site with Playwright and evaluates it
+against the lowwwimpact criteria, generates paired eco-design deliverables from Figma frames or a
+codebase, and keeps a light sustainability lens active during everyday development.
+
+## Modes
+
+Three modes. Named, not numbered — the numbering changed twice and broke people's prompts.
+
+| Mode | Trigger | Produces |
+|---|---|---|
+| **Passive** | Always on after install — never invoked | Lower-impact suggestions at the moment you add an image, font, embed, dependency, or animation |
+| **Evaluate** | `/lowwwimpact-evaluate <url>`, or "evaluate", "audit", "lowwwimpact", "criteria" + a URL | `sustainability-report.md` and `lowwwimpact-evaluation.json` |
+| **Eco-Specs** | `/lowwwimpact-eco-specs`, or "eco specs", "dev specs", "eco review", "designer review" | `dev-specs.md` and `eco-review.md` |
+
+### Passive
+
+Installed into the project's `AGENTS.md` by the install workflow, so it is in context for every
+session without being invoked. It offers the lower-impact option at integration moments and points
+at the relevant block of `references/ecodesign-requirements-concise.md`. Advisory only — it never
+blocks, and it proceeds with the developer's choice.
+
+### Evaluate
+
+One pipeline, one command: crawl the site, run six audit phases, synthesize a report, measure page
+weight and Lighthouse, then evaluate the 27 lowwwimpact criteria. Requires Playwright and a live
+URL.
+
+Two outputs. `workspace/sustainability-report.md` is the human-facing audit with findings ranked by
+KB savings. `workspace/lowwwimpact-evaluation.json` is the structured criteria assessment — **its
+structure is a hard contract defined by `references/valid-example.json`.**
+
+`evaluate --debug` is the measurement-only variant: auth plus weight and Lighthouse, nothing else.
+Use it to verify a login flow works before running the full pipeline.
+
+### Eco-Specs
+
+Runs discovery once and writes two audience-specific files from it. No flags, no sub-modes — every
+run produces both. Does not require Playwright or a live URL.
+
+**With `figma.com` frame URLs:** inspects each frame via the Figma MCP — annotations first, then
+visual detection. **Without:** scans the current project — project-wide detection plus a per-screen
+scan of 2–3 representative templates.
+
+Either path writes `workspace/element-inventory.json`, which both writers consume:
+
+| Output | Audience | Content |
+|---|---|---|
+| `workspace/dev-specs.md` | Developers | Technical requirements per element type, sourced from `references/ecodesign-requirements-concise.md` with its curated documentation links |
+| `workspace/eco-review.md` | Designers | Per-screen findings against the eco-design principles, key actions, and a design sobriety section. No code, no developer jargon. |
+
+---
+
+## How this skill runs
+
+The skill is plain markdown. It is designed to work in any host that can read files, run shell
+commands, and follow a multi-step document — Claude Code, opencode, Cursor, and others.
+
+**Phases are self-contained.** Each file in `phases/` declares its `## Inputs` and `## Outputs` and
+reads and writes only the `workspace/` paths named there. No parameters are passed in.
+
+**Delegate if you can, run inline if you can't.** This rule applies everywhere and is stated only
+here:
+
+- The six evaluate audit phases are mutually independent. Delegate them in parallel where the host
+  supports subagents; otherwise run them in sequence. The result is identical either way.
+- The two eco-specs writers are likewise independent of each other, but both depend on the
+  inventory phase completing first.
+- Everything else is sequential by nature.
+
+**Model capability varies.** Each audit phase and each eco-specs phase carries ~2k tokens of
+instruction and runs comfortably on modest models. The criteria evaluation is much heavier — the
+evaluator plus the criteria file is ~20k tokens before any page data — and needs a large-context,
+capable model to produce a valid result. See the portability notes in `README.md`.
+
+---
 
 ## Prerequisites
 
-Playwright CLI must be installed. If not available, run:
+**Playwright CLI** — required by evaluate. Not needed for eco-specs or passive.
 
 ```bash
 npm install -g @playwright/cli@latest
@@ -19,205 +88,166 @@ playwright-cli install --skills
 
 Verify with `playwright-cli --help`.
 
-**Lighthouse CLI** is used for performance, accessibility, best-practices, and SEO scoring.
-Runs via `npx` — no separate installation needed if Node.js ≥ 18 is available.
-Verify: `npx lighthouse --version`. If unavailable, Lighthouse scores will be omitted and
-noted in the report.
+**Lighthouse CLI** — used by evaluate for performance, accessibility, best-practices, and SEO
+scoring. Runs via `npx`; no install needed with Node.js ≥ 18. Verify: `npx lighthouse --version`.
+If unavailable, Lighthouse scores are omitted and noted in the report.
+
+**Figma MCP** — required by eco-specs only when Figma frame URLs are given.
 
 ## Inputs
 
-The user provides:
+1. **Target URL** — required for evaluate
+2. **Monthly pageviews** (optional) — for annual carbon estimates (default: 10,000)
+3. **Focus areas** (optional) — which audit domains matter most
+4. **Context** (optional) — app description, constraints, hosting provider
+5. **Criteria file** (optional) — defaults to `references/lowwwimpact-criteria.json`
+6. **User journeys** (optional) — 1–2 natural-language task descriptions. Evaluate asks before
+   proceeding if not supplied.
 
-1. **Target URL** (required for review mode, optional for evaluate mode) — The application's entry point
-2. **Evaluation file** (required for fix mode) — Path to `workspace/lowwwimpact-evaluation.json` produced by Mode 2. The Mode 1 `workspace/sustainability-report.md` is also read for KB savings data.
-3. **Monthly pageviews** (optional) — For annual carbon estimates (default: 10,000)
-4. **Focus areas** (optional) — Which audit domains matter most (see Agent Roster below)
-5. **Context** (optional) — App description, known constraints, hosting provider
-6. **Criteria file** (optional, evaluate mode) — Path to criteria JSON, defaults to `references/lowwwimpact-criteria.json`
-7. **User journeys** (optional, evaluate mode) — 1–2 natural-language use cases describing a task a user would perform on the site (e.g. "from the homepage, find a product and add it to the cart, then visit the cart"). If not provided, the skill will ask before proceeding.
-8. **Pre-cached weights** (optional, evaluate mode) — `workspace/page-weights.json` produced by `/measure-page-weight` or Mode 1. If present, Mode 2 uses it without re-measuring.
-
-If the user doesn't provide optional inputs, use reasonable defaults and note assumptions.
-
-## Modes of Operation
-
-### Mode 0: Init / Project Setup
-
-Triggered when the user says "init", "setup", "install in this project", or "lowwwimpact init".
-Wires the skill into the current project with the fewest manual steps: copies the fix commands
-into `<project>/.claude/commands/` and adds the companion `@import` to `CLAUDE.md`. Runs from a
-bare clone because the skill is auto-discovered from `.claude/skills/`. See the **Init Workflow**
-below. Also available as `/lowwwimpact-init` once the commands are installed.
-
-### Mode 1: Review
-
-Triggered when the user provides a URL. Browses the live site, runs 6 parallel audit agents,
-synthesizes a prioritized sustainability report. Every finding is tagged with the `/xyz-optim`
-command to run for the fix.
-
-### Mode 2: Evaluate
-
-Triggered when the user says "evaluate", "lowwwimpact", "assessment", or "criteria". Reads the
-27 lowwwimpact sustainability criteria from a JSON reference file, evaluates each one against
-an existing Mode 1 report and direct Playwright inspection, and outputs a structured JSON file
-where every criterion has a typed answer and note.
-
-**Evidence priority chain:**
-1. Uses `workspace/page-weights.json` if present (produced by `/measure-page-weight` or Mode 1) for Lighthouse scores and page weight data
-2. Uses Mode 1 reports if present (`workspace/sustainability-report.md` + agent reports) for richer criteria evidence across all audit domains
-3. Falls back to standalone Lighthouse + direct Playwright inspection if neither is available
-
-Run `/measure-page-weight <url>` first to pre-cache accurate weight and Lighthouse data — recommended when running Mode 2 without Mode 1.
-
-**Debug variant — `evaluate --debug`:** measurement-only. Runs the shared auth + measure
-pipeline (`references/auth-measure-pipeline.md`) and writes `workspace/debug-weights.json` —
-nothing else. It skips criteria loading, the evaluator agent, and all Mode 1 agents. Use it to
-verify that authentication and weight/Lighthouse measurement work (especially on pages behind a
-login) before running a full evaluation. See the **Evaluate Debug Workflow** below.
-
-### Mode 3: Fix
-
-Triggered when the user says "fix", "fix plan", or provides the path to a Mode 2 evaluation
-file. Reads `workspace/lowwwimpact-evaluation.json` and `workspace/sustainability-report.md`,
-then produces a persistent `workspace/fix-plan.md`. Fixes are ranked by KB savings. Each fix
-entry lists the lowwwimpact criteria IDs it addresses and includes curated web references found
-via live WebSearch.
-
-Requires Mode 2 output.
-
-### Mode 4: Eco-Design Specs & Review
-
-Triggered by keywords "specs", "eco specs", "dev specs", "sustainability specs", "figma specs",
-"eco review", "designer review", "design review", "eco-design principles", or
-"review for designers" — with or without Figma frame URLs.
-
-Runs discovery **once** and writes **two** audience-specific files from it. There are no flags and
-no sub-modes: every run produces both.
-
-**If `figma.com` frame URLs are present:** inspects each frame with the Figma MCP — annotations
-first, then visual detection.
-
-**If no `figma.com` URLs are present:** scans the current project directory — project-wide
-detection plus a per-screen scan of 2–3 representative page templates.
-
-Either path writes `workspace/element-inventory.json`, which both writers then consume:
-
-| Output | Audience | Content |
-|---|---|---|
-| `workspace/dev-specs.md` | Developers | Technical sustainability requirements per element type — the "invisible" specs designers don't annotate — with curated references |
-| `workspace/eco-review.md` | Designers | Per-screen findings against the eco-design principles, key actions, and a design sobriety section. No code, no developer jargon. |
-
-Fully independent of Modes 1–3. Does not require Playwright or a live URL.
+If optional inputs are absent, use reasonable defaults and note the assumptions.
 
 ---
 
-## Agent Roster
+## Phase Roster
 
-Each agent has a specialized sustainability lens. All agents use Playwright CLI to inspect the
-live site.
+### Evaluate phases
 
-### Review Agents (Mode 1)
+| Phase | Focus | Tools | Fixes map to |
+|---|---|---|---|
+| **Images** | Formats, compression, responsive, lazy loading, alt text | Playwright CLI | block 1–3 · `/image-optim` |
+| **Media & Fonts** | Video facades, font loading, WOFF2, animations | Playwright CLI | blocks 6–13 · `/media-optim`, `/typo-optim`, `/animation-optim` |
+| **JavaScript** | Bundle size, loading strategy, native APIs, code splitting | Playwright CLI | blocks 31–32 · `/native-feature-optim`, `/performance-optim` |
+| **CSS & HTML** | CSS size, critical CSS, semantic HTML, dark mode, reduced-motion | Playwright CLI | blocks 29–30 · `/native-feature-optim`, `/seo-optim` |
+| **Network & Infrastructure** | Caching, compression, third-party domains, service worker | Playwright CLI, WebSearch | blocks 14–18, 34–36 · `/cache-compression-optim`, `/third-party-optim` |
+| **Carbon & Performance** | Page weight budget, carbon calculation, hosting | Playwright CLI, WebFetch | block 36 · `/performance-optim` |
+| **Synthesizer** | Merges the six reports into the ranked report | — | — |
+| **Evaluator** | Maps findings to the 27 criteria, writes the contract JSON | Playwright CLI, WebFetch | — |
 
-| # | Agent | Focus | Tools | Fix Commands | Reference |
-|---|-------|-------|-------|-------------|-----------|
-| 1 | **Images** | Formats, compression, responsive, lazy loading, alt text | Playwright CLI | `/image-optim` | `agents/mode-1-review/images-audit.md` |
-| 2 | **Media & Fonts** | Video facades, font loading, WOFF2, animations | Playwright CLI | `/media-optim`, `/typo-optim`, `/animation-optim`, `/cms-media-optim` | `agents/mode-1-review/media-fonts-audit.md` |
-| 3 | **JavaScript** | Bundle size, loading strategy, native APIs, code splitting | Playwright CLI | `/native-feature-optim`, `/performance-optim`, `/reusable-components-optim` | `agents/mode-1-review/javascript-audit.md` |
-| 4 | **CSS & HTML** | CSS size, critical CSS, semantic HTML, dark mode, reduced-motion | Playwright CLI | `/native-feature-optim`, `/compatibility-optim`, `/seo-optim` | `agents/mode-1-review/css-html-audit.md` |
-| 5 | **Network & Infrastructure** | Caching, compression, third-party domains, service worker | Playwright CLI, WebSearch | `/cache-compression-optim`, `/third-party-optim` | `agents/mode-1-review/network-infra-audit.md` |
-| 6 | **Carbon & Performance** | Page weight budget, carbon calculation, hosting, aggregate metrics | Playwright CLI, WebFetch | `/performance-optim` | `agents/mode-1-review/carbon-performance-audit.md` |
-| 7 | **Synthesizer** | Reads all 6 reports → prioritized action plan with fix command mapping | — | — | `agents/mode-1-review/synthesizer.md` |
+Files live in `phases/evaluate/`.
 
-### Specs & Review Agents (Mode 4)
+**Findings cite both a block and a command.** The requirement block in
+`references/ecodesign-requirements-concise.md` explains what and why and carries documentation
+links — it works in every host. The `/xyz-optim` command executes the fix where a command runner
+exists. Write findings as `→ block 1 (Raster images) · /image-optim`.
 
-One inventory agent runs (whichever matches the input path), then both writers run in parallel off
-its JSON output.
+### Eco-specs phases
 
-| # | Agent | Input | Focus | Tools | Reference |
-|---|-------|-------|-------|-------|-----------|
-| 9 | **Figma Inventory** | Figma frame URLs | Extracts annotations, then detects element types visually → writes `element-inventory.json` | Figma MCP | `agents/mode-4-specs-review/figma-inventory-agent.md` |
-| 9b | **Code Inventory** | Project directory | Project-wide grep detection + per-screen scan of 2–3 templates → writes `element-inventory.json` | Bash | `agents/mode-4-specs-review/code-inventory-agent.md` |
-| 10 | **Dev Specs Writer** | `element-inventory.json` | Maps detected categories to eco-design requirement blocks → writes dev-facing specs with curated references | Read | `agents/mode-4-specs-review/dev-specs-writer.md` |
-| 10b | **Designer Review Writer** | `element-inventory.json` | Analyzes per-screen inventory against eco-design principles → writes designer-facing findings + sobriety section | Read | `agents/mode-4-specs-review/designer-review-writer.md` |
+| Phase | Input | Writes |
+|---|---|---|
+| **Figma Inventory** | Figma frame URLs | `workspace/element-inventory.json` |
+| **Code Inventory** | Project directory | `workspace/element-inventory.json` |
+| **Dev Specs Writer** | the inventory | `workspace/dev-specs.md` |
+| **Designer Review Writer** | the inventory | `workspace/eco-review.md` |
 
-### Evaluate Agent (Mode 2)
+Files live in `phases/eco-specs/`. One inventory phase runs, then both writers.
 
-| # | Agent | Focus | Tools | Reference |
-|---|-------|-------|-------|-----------|
-| 8 | **Evaluator** | Maps audit findings to lowwwimpact criteria, produces structured JSON assessment | Playwright CLI, WebFetch | `agents/mode-2-evaluate/evaluator.md` |
+### Fix command catalogue
 
-### Complete Fix Command Catalogue
-
-These commands live in `commands/` in this repository. Init (Mode 0) copies them into the
-project's `.claude/commands/`. The skill references them by name — it does not contain fix logic
-itself.
+These live in `commands/` and are copied into the host's command directory at install. The skill
+references them by name — it contains no fix logic itself.
 
 | Command | Domain |
 |---------|--------|
+| `/lowwwimpact-evaluate` | Run the evaluate pipeline |
+| `/lowwwimpact-eco-specs` | Run the eco-specs pipeline |
+| `/lowwwimpact-init` | Install into the current project |
+| `/measure-page-weight` | Page weight + Lighthouse → `workspace/page-weights.json` |
 | `/image-optim` | Image formats, responsive, lazy loading, compression, CLS |
 | `/media-optim` | Video/audio: autoplay, preload, formats, facades, accessibility |
 | `/cms-media-optim` | CMS upload constraints, auto-processing, editor guardrails |
 | `/typo-optim` | WOFF2, subsetting, self-hosting, font-display, system fallback |
-| `/animation-optim` | GPU-safe properties, prefers-reduced-motion, no GIFs, will-change |
-| `/third-party-optim` | Facade pattern for YouTube/Vimeo/Maps/Calendly/social, max 4 domains |
-| `/native-feature-optim` | Replace JS with native HTML/CSS: dialog, details, scroll-snap, popover |
-| `/cache-compression-optim` | .htaccess: Gzip, Cache-Control, hashed filenames |
+| `/animation-optim` | GPU-safe properties, prefers-reduced-motion, no GIFs |
+| `/third-party-optim` | Facades for YouTube/Vimeo/Maps/Calendly/social, max 4 domains |
+| `/native-feature-optim` | Native HTML/CSS over JS: dialog, details, scroll-snap, popover |
+| `/cache-compression-optim` | Gzip/Brotli, Cache-Control, hashed filenames |
 | `/performance-optim` | Page weight budget, Lighthouse, bundle analysis, CI enforcement |
 | `/reusable-components-optim` | Duplicate CSS/JS detection, shared utilities, unused exports |
 | `/compatibility-optim` | Progressive enhancement, @supports, polyfills, degradation |
 | `/seo-optim` | Titles, descriptions, canonical, Open Graph, JSON-LD |
-| `/measure-page-weight` | Pre-cache page weight + Lighthouse scores to `workspace/page-weights.json` |
-| `/lowwwimpact-init` | Project setup: copy fix commands to `.claude/commands/` + wire companion `@import` into `CLAUDE.md` |
 
 ---
 
-## Init Workflow (Mode 0)
+## Install Workflow
 
-Finishes per-project setup after the skill folder has been cloned into
-`<project>/.claude/skills/lowwwimpact-helper/`. Idempotent — safe to re-run after an update.
+Finishes per-project setup after the skill folder has been cloned into the project. Idempotent —
+safe to re-run after an update. Also available as `/lowwwimpact-init` once installed.
 
-1. **Resolve the skill directory** — `<project>/.claude/skills/lowwwimpact-helper/`. If it is not
-   present, stop and tell the user to clone it first.
-2. **Copy the fix commands to the project** — plain-copy `<skill>/commands/*.md` into
-   `<project>/.claude/commands/` (create the directory if needed; overwrite existing files so
-   updates refresh). This includes `lowwwimpact-init.md` itself.
-3. **Wire the companion block into `CLAUDE.md`** — ensure `<project>/CLAUDE.md` exists (create it
-   if missing). If it does not already contain `@.claude/skills/lowwwimpact-helper/companion.md`,
-   append:
+### Step 1 — Detect the host
 
-   ```markdown
-   ## Sustainable-by-default (lowwwimpact companion)
+Find where the skill actually lives and derive the destinations:
 
-   @.claude/skills/lowwwimpact-helper/companion.md
-   ```
+| Skill directory | Host | Commands → | Passive → |
+|---|---|---|---|
+| `.claude/skills/lowwwimpact-helper/` | Claude Code | `.claude/commands/` | `AGENTS.md`, plus `@AGENTS.md` in `CLAUDE.md` |
+| `.opencode/lowwwimpact-helper/` | opencode | `.opencode/commands/` | `AGENTS.md` |
+| `.cursor/skills/lowwwimpact-helper/` | Cursor | `.cursor/commands/` | `AGENTS.md` |
 
-   Never add the import line twice.
-4. **Report** — list the commands copied and whether the companion import was added or was already
-   present.
+If more than one matches, ask which host to install for. If none matches, ask the user where the
+skill lives rather than guessing.
 
-Everything installs at the **project** level — nothing is written to `~/.claude`. To update later,
-re-copy the skill folder and re-run this workflow to refresh the copied commands; `companion.md`
-updates automatically through the `@import`.
+### Step 2 — Copy the commands
+
+Plain-copy `<skill>/commands/*.md` into the host's command directory, creating it if needed and
+overwriting existing files so updates refresh. This includes `lowwwimpact-init.md` itself.
+
+Do not add YAML frontmatter. The files are plain markdown precisely so the same file works in
+every host.
+
+### Step 3 — Install passive mode into `AGENTS.md`
+
+Ensure `<project>/AGENTS.md` exists, then inject the contents of `<skill>/passive.md` between
+marker comments:
+
+```markdown
+<!-- lowwwimpact:passive:start -->
+…contents of passive.md…
+<!-- lowwwimpact:passive:end -->
+```
+
+**Idempotent by replacement**: if both markers are already present, replace everything between
+them. Only append the block when the markers are absent. Never write the block twice.
+
+Content is injected rather than imported because `@path` imports are Claude Code syntax and the
+`AGENTS.md` convention has no portable import mechanism. The cost is that the block goes stale when
+the skill updates — re-running install refreshes it, the same way it refreshes the commands.
+
+### Step 4 — Claude Code only: point `CLAUDE.md` at `AGENTS.md`
+
+Ensure `<project>/CLAUDE.md` contains the single line `@AGENTS.md`. Skip if already present. This
+keeps one source of passive guidance across all hosts.
+
+### Step 5 — Report
+
+List the commands copied, the host detected, and whether the passive block was added or replaced.
+
+Everything installs at the **project** level — nothing is written to `~/.claude` or the equivalent.
 
 ---
 
-## Review Mode Workflow
+## Evaluate Mode Workflow
 
-### Phase 1: Setup
+One pipeline. Every run measures cold — there is no artifact reuse or caching layer, because the
+measurement semantics depend on genuine cold loads and reused numbers would not be comparable.
+
+### Step 0: Collect user journeys
+
+If no journeys were provided in the prompt, ask:
+
+> "Do you have 1–2 user journeys to include in this evaluation?
+> Example: 'From the homepage, find a product and add it to the cart, then visit the cart.'
+> You can also say **skip** to proceed without journey data."
+
+If the user says skip, set journeys = [] and continue.
+
+### Step 1: Setup
 
 1. Confirm the target URL and any user-provided context
 2. Ensure Playwright CLI is installed (`playwright-cli --help`)
-3. Create the workspace directory for outputs:
-   ```
-   workspace/
-   ├── discovery.md
-   ├── agents/
-   └── sustainability-report.md
-   ```
+3. Create `workspace/` with a `phases/` subdirectory for per-phase reports
 
-### Phase 2: Discovery (Main Agent)
+### Step 2: Discovery
 
-Before spawning audit agents, crawl the site to build a shared resource inventory.
+Before the audit phases, crawl the site to build a shared resource inventory.
 **Each page is measured in a fresh session** (no cache from previous pages):
 
 1. For each page to discover (landing page + 3–5 key inner pages):
@@ -228,7 +258,7 @@ Before spawning audit agents, crawl the site to build a shared resource inventor
       playwright-cli -s=disc-N eval "new Promise(r => { if (document.readyState === 'complete') r(); else window.addEventListener('load', r, {once: true}); })"
       playwright-cli -s=disc-N eval "new Promise(r => setTimeout(r, 3000))"
       ```
-   c. Capture network data and snapshot (no screenshots in Mode 1/2/3)
+   c. Capture network data and snapshot (no screenshots)
    d. Measure page weight via Performance API (conservative — cross-origin resources may be 0)
    e. Close the session: `playwright-cli -s=disc-N close`
    f. Increment N and repeat for the next page
@@ -240,7 +270,7 @@ Before spawning audit agents, crawl the site to build a shared resource inventor
 > without a `Timing-Allow-Origin` header — third-party bytes (analytics, consent managers,
 > CDN assets from external domains) may appear as 0. Report weights as conservative estimates
 > and note this limitation in `discovery.md`. Lighthouse-based measurements in the
-> carbon-performance agent provide the authoritative figures.
+> carbon-performance phase provide the authoritative figures.
 
 Discovery template:
 
@@ -274,266 +304,97 @@ Discovery template:
 [Simple sitemap tree]
 ```
 
-This discovery output is shared with all audit agents as context.
+This discovery output is shared with all audit phases as context.
 
-### Phase 3: Parallel Audit (Sub-agents)
+### Step 3: Audit phases
 
-Spawn agents 1-6 in parallel. Each agent receives:
+Run the six audit phases. They are mutually independent — delegate them in parallel where the host
+supports it, otherwise run them in sequence.
+
+Each phase receives, by reading it:
 
 - The target URL
-- The discovery file (`workspace/discovery.md`)
-- Their specific agent instructions (from `agents/mode-*/*.md`)
-- The Playwright CLI reference (`references/playwright-guide.md`)
-- The relevant sustainability references (from `references/`)
-- An output directory for their findings (`workspace/agents/`)
+- `workspace/discovery.md`
+- Its own instructions from `phases/evaluate/`
+- `references/playwright-guide.md` and the relevant files in `references/`
 
-Each agent:
-1. Opens the site in its own Playwright CLI session (`-s=<agent-name>`)
-2. Navigates through relevant pages
+Each phase:
+
+1. Opens its own Playwright CLI session (`-s=<phase-name>`)
+2. Navigates the relevant pages
 3. Inspects resources, network data, DOM structure, and response headers
-4. Takes snapshots as evidence (do NOT take screenshots — not needed in Mode 1/2/3)
-5. Writes findings to their output file with estimated KB savings and fix command tags
+4. Takes snapshots as evidence — **no screenshots**, they are not needed here
+5. Writes findings to `workspace/phases/<name>-audit.md` with estimated KB savings, and tags each
+   finding with its requirement block and fix command
 
-If sub-agents are not available, run each audit sequentially in the main loop.
+### Step 4: Synthesis
 
-### Phase 4: Synthesis
+The synthesizer phase:
 
-After all audits complete, the Synthesizer agent:
-
-1. Reads all 6 agent reports
+1. Reads all six phase reports from `workspace/phases/`
 2. Deduplicates overlapping findings (does not double-count savings)
 3. Calculates the sustainability grade using the SWD carbon model
 4. Builds the page weight breakdown table
-5. Maps every finding to its `/xyz-optim` fix command
+5. Maps every finding to its requirement block and fix command
 6. Ranks findings by bandwidth savings (KB) and implementation effort
 7. Creates the Fix Command Summary table
 8. Creates the Sprint Plan
 9. Calculates improvement potential (projected grade after fixes)
-10. Produces the final report
+10. Writes `workspace/sustainability-report.md` following `references/report-template.md`
 
-### Phase 5: Output
-
-Generate the final report following `references/report-template.md`.
-
-Save to `workspace/sustainability-report.md` and present to the user.
-
----
-
-## Fix Mode Workflow
-
-### Step 1: Load Evidence
-
-Read both files:
-- `workspace/lowwwimpact-evaluation.json` — criteria pass/fail state and notes (Mode 2 output)
-- `workspace/sustainability-report.md` — Fix Command Summary table with KB savings per command (Mode 1 output)
-
-If either file is missing, stop and tell the user which mode to run first:
-- Missing `sustainability-report.md` → run Mode 1 (Review)
-- Missing `lowwwimpact-evaluation.json` → run Mode 2 (Evaluate)
-
-### Step 2: Build the Fix Index
-
-For each `/xyz-optim` command found in the Fix Command Summary:
-
-1. Record its total KB savings from the report
-2. Scan the evaluation JSON for criteria where `answer` is `false` or an incomplete
-   checkboxes array, and map them to this command using the domain table below
-3. Pull the relevant findings from the Mode 1 report for this command
-4. Build an entry: `command → { kb_savings, criteria_ids[], findings[] }`
-
-Criteria-to-command domain mapping:
-
-| Criteria prefix | Command(s) |
-|-----------------|------------|
-| 1.4 (images) | `/image-optim` |
-| 1.5 (media/video) | `/media-optim`, `/cms-media-optim` |
-| 1.6 (fonts) | `/typo-optim` |
-| 1.7 (animation) | `/animation-optim` |
-| 2.1 (caching/compression) | `/cache-compression-optim` |
-| 2.2 (JS) | `/native-feature-optim`, `/performance-optim`, `/reusable-components-optim` |
-| 2.3 (CSS/HTML) | `/native-feature-optim`, `/compatibility-optim`, `/seo-optim` |
-| 2.5 (third-party) | `/third-party-optim` |
-| 3.x (carbon/performance) | `/performance-optim` |
-
-### Step 3: Research References
-
-For each command that has at least one failing criterion or finding, run a **WebSearch** to
-find 2–3 authoritative references (MDN, web.dev, WHATWG, W3C, Smashing Magazine, CSS-Tricks).
-Prefer links specific to the failing criteria notes rather than generic documentation.
-Run searches per command — do not batch into a single global search.
-
-### Step 4: Write fix-plan.md
-
-Save to `workspace/fix-plan.md`. Order fix entries by KB savings descending.
-
-```markdown
-# Fix Plan — [Site Name]
-
-Generated: [date] | Based on: sustainability-report.md + lowwwimpact-evaluation.json
-
-## Summary
-
-| Priority | Command | KB Savings | Criteria Addressed |
-|----------|---------|------------|--------------------|
-| 1 | `/image-optim` | 320 KB | 1.4.a, 1.4.b, 1.4.c |
-| 2 | `/third-party-optim` | 180 KB | 2.5.a, 2.5.b |
-| … | … | … | … |
-
-## Fixes
-
-### 1. `/image-optim` — 320 KB savings
-
-**Criteria addressed:** 1.4.a, 1.4.b, 1.4.c
-
-**Findings:**
-- 8 images served as PNG instead of WebP (est. −180 KB)
-- 5 below-fold images missing `loading="lazy"` (est. −60 KB)
-- Hero image has no `srcset` for mobile (est. −80 KB)
-
-**References:**
-- [Title](url)
-- [Title](url)
-
-**Run:** `/image-optim`
-
----
-
-[repeat for each command, ranked by KB savings descending]
-
-## Next Steps
-
-After applying fixes, re-run Mode 1 to measure improvement, then re-run Mode 2 to update
-the evaluation JSON and compare criteria scores.
-```
-
----
-
-## Evaluate Debug Workflow (`evaluate --debug`)
-
-Measurement-only path. The coordinator runs this directly — it does **not** spawn the evaluator
-agent, load criteria, or run any Mode 1 agent. Goal: confirm auth + weight/Lighthouse measurement
-work, then stop so the user can inspect the result and fix the pipeline.
-
-1. **Collect URLs** — take the URL(s) explicitly provided by the user, in order. No journey
-   discovery, no crawling.
-2. **Run the shared pipeline** (`references/auth-measure-pipeline.md`):
-   - **Phase A — Auth Setup**: detect a login redirect; if found, log in and write
-     `workspace/auth-state.json`. For a public site this is a no-op.
-   - **Phase B — Measure**: run `/measure-page-weight <url...> --out workspace/debug-weights.json`.
-3. **Set `meta.source` to `"debug"`** in the written file (same per-page schema as
-   `page-weights.json`: the 8 keys `url`, `title`, `performance`, `accessibility`, `best_practices`,
-   `seo`, `initial_weight_kb`, `deferred_weight_kb`).
-4. **Print the per-page summary** (initial/deferred KB + the 4 scores) and stop. Do not load
-   criteria, do not write `lowwwimpact-evaluation.json`, do not run the synthesizer.
-
-`workspace/debug-weights.json` is intentionally a separate file — it never overwrites a real
-`workspace/page-weights.json` cache.
-
-## Evaluate Mode Workflow
-
-### Step 0: Collect User Journeys
-
-If no journeys were provided in the prompt, ask the user:
-
-> "Do you have 1–2 user journeys to include in this evaluation?
-> Example: 'From the homepage, find a product and add it to the cart, then visit the cart.'
-> You can also say **skip** to proceed without journey data."
-
-If the user says skip (or equivalent), set journeys = [] and continue.
-If journeys are provided, proceed — they will be resolved in Step 1.5 of the evaluator agent.
-
-### Step 1: Load Criteria
+### Step 5: Load criteria
 
 Read the criteria file (default: `references/lowwwimpact-criteria.json`). Parse the `criteria`
-array. Skip any entries where `id` starts with `TODO` — these are placeholders the user has
-not yet filled in from their spreadsheet export.
+array. Skip entries whose `id` starts with `TODO` — those are unfilled placeholders.
 
-### Step 2: Load Evidence Sources
+### Step 6: Evaluate each criterion
 
-Check for `workspace/page-weights.json` first (Step 1.9 in the evaluator agent). If present,
-Lighthouse scores and page weights are loaded from there without re-measuring.
+The evaluator phase reads `workspace/sustainability-report.md` and the reports in
+`workspace/phases/` as its evidence, plus direct Playwright inspection where needed. Each criterion
+has a `report_mapping` field pointing at the relevant phase report.
 
-If `workspace/sustainability-report.md` exists, read it and the individual agent reports in
-`workspace/agents/` for criteria evidence. If absent, proceed — criteria evidence will be
-limited to direct Playwright inspection.
-
-Each criterion has a `report_mapping` field that points to the relevant agent report(s).
-
-The URL is taken from the Mode 1 report if available, from `workspace/page-weights.json` if
-not, or asked of the user if neither exists.
-
-### Step 3: Evaluate Each Criterion
-
-The evaluator agent processes each criterion based on its `automatable` flag and `type`:
+Process each criterion by its `automatable` flag and `type`:
 
 - **`automatable: false`** → `answer: null`, note explains why human judgment is needed
-- **`automatable: true`** → Evaluate from report evidence and/or Playwright inspection
-- **`automatable: "partial"`** → Answer what can be confirmed, leave uncertain parts for human review
+- **`automatable: true`** → evaluate from report evidence and/or Playwright inspection
+- **`automatable: "partial"`** → answer what can be confirmed, leave the rest for human review
 
 Answer types:
+
 - **boolean** → `true` or `false`
 - **range** → a number based on measurable data
 - **numeric** → a count based on measurable data
 - **checkboxes** → array of strings from the `answers` list that are confirmed true
 
-### Step 4: Write Output
+The 27 criteria may be reasoned about in groups to keep context manageable. **Assembling the output
+document stays a single pass**, because splitting assembly threatens the output contract.
 
-Save to `workspace/lowwwimpact-evaluation.json`:
+### Step 7: Write the evaluation JSON
 
-```json
-{
-  "meta": {
-    "url": "https://example.com",
-    "urls": ["https://example.com", "https://example.com/about"],
-    "date": "2026-03-10",
-    "report": "workspace/sustainability-report.md",
-    "lighthouse": "carbon-performance-audit",
-    "criteria_version": "lowwwimpact v1",
-    "total_criteria": 27,
-    "evaluated": 20,
-    "skipped_subjective": 5,
-    "skipped_na": 2,
-    "skipped_todo": 0
-  },
-  "evaluation": [
-    {
-      "id": "1.4.c",
-      "type": "boolean",
-      "question": "Is lazy loading used to ensure that image assets are only loaded when they are needed?",
-      "answer": true,
-      "note": "Pass — 14 of 16 below-fold images use loading=\"lazy\""
-    }
-  ],
-  "pages": {
-    "page-1": {
-      "url": "https://example.com",
-      "title": "Home — Example",
-      "performance": 72,
-      "accessibility": 91,
-      "best_practices": 83,
-      "seo": 95,
-      "initial_weight_kb": 820,
-      "deferred_weight_kb": 1340
-    }
-  },
-  "lighthouse_recap": "Performance is the weakest area (avg. 72/100). The audit found render-blocking JS and unoptimised images as the main causes — criteria 1.4.b and 2.2.a confirm unminified assets. Running /performance-optim and /image-optim would likely bring scores above 85.",
-  "recommendations": {
-    "executive_summary": "The site handles infrastructure and font loading well but fails on image optimisation and third-party script management. Seven criteria failed outright, with images and JS weight being the most impactful gaps. A focused sprint on /image-optim and /third-party-optim would address the majority of the issues.",
-    "top_5": ["1.4.b", "1.5.c", "2.5.c", "2.2.a", "3.2.a"]
-  },
-  "journeys": {
-    "journey-1": {
-      "description": "From homepage, find a product, add to cart, visit the cart",
-      "pages": [
-        { "url": "https://example.com", "name": "Home", "kb": 420 },
-        { "url": "https://example.com/shop", "name": "Shop catalogue", "kb": 380 },
-        { "url": "https://example.com/shop/running-shoes", "name": "Running Shoes", "kb": 520 },
-        { "url": "https://example.com/cart", "name": "Cart", "kb": 290 }
-      ]
-    }
-  }
-}
+**The structure of `workspace/lowwwimpact-evaluation.json` is a hard contract defined by
+`references/valid-example.json`.** Read that file and match it exactly before writing. It is
+consumed downstream; a structural mismatch is a failed run regardless of how good the findings are.
+
+| Key | Type | Notes |
+|---|---|---|
+| `meta` | object | `url`, `urls[]`, `date`, `lighthouse`, `criteria_version`, `total_criteria`, `evaluated`, `skipped_subjective`, `na` |
+| `evaluation` | **array of 27** | each `{ id, type, question, answer, note }` |
+| `pages` | **object** keyed `page-1`, `page-2`, … | **not an array** |
+| `lighthouse_recap` | string | required top-level key |
+| `recommendations` | object | `executive_summary` + `top_5` |
+| `journeys` | **object** keyed `journey-1`, … | **not an array** |
+
+`pages` and `journeys` being objects keyed by index string, next to `evaluation` which genuinely is
+an array, is the trap. Do not normalise them.
+
+**Validate before presenting the result:**
+
+```bash
+python3 scripts/validate-evaluation.py workspace/lowwwimpact-evaluation.json
 ```
+
+A non-zero exit means the output violates the contract. Fix the structure and re-run. Never present
+an evaluation that fails this check.
 
 Each page entry in `pages` MUST contain exactly these 8 keys — no more, no fewer. NEVER rename them, prefix them, or add extra keys (e.g. do NOT add `fcp`, `lcp`, `tbt`, `cls`, `co2_g`, `grade`, `lighthouse_performance`, `total_kb`, or any other field):
 - `url` — full page URL
@@ -551,8 +412,8 @@ Each entry has the original `description` and an ordered `pages` array of `{ url
 `kb` is the total transfer size of that page measured during the clean measurement pass.
 Omit the `journeys` key entirely if the user skipped journey input.
 
-`meta.lighthouse` is `"carbon-performance-audit"` when data came from a Mode 1 report,
-`"standalone"` when Lighthouse was run directly in Mode 3, or `null` (with `pages` omitted)
+`meta.lighthouse` is `"carbon-performance-audit"` when data came from the carbon-performance phase,
+`"standalone"` when Lighthouse was run directly, or `null` (with `pages` omitted)
 when no Lighthouse data was available.
 
 `lighthouse_recap` is a plain string (max 600 characters) written after all 27 criteria are
@@ -567,60 +428,83 @@ prioritise. `recommendations.top_5` is an array of up to 5 criterion IDs that fa
 add the most points if fixed, ranked by potential gain (checkboxes with more unchecked options
 rank higher; other types count as 1).
 
-Present the output to the user with a summary: how many criteria were evaluated, how many
-need human review, and any notable pass/fail highlights.
+
+Present the output to the user with a summary: how many criteria were evaluated, how many need
+human review, and any notable pass/fail highlights.
 
 ---
 
-## Specs & Review Mode Workflow (Mode 4)
+## Eco-Specs Mode Workflow
 
-Discovery runs once; both writers consume its output. There are no flags — every run produces both
+Discovery runs once; both writers consume its output. No flags — every run produces both
 `workspace/dev-specs.md` and `workspace/eco-review.md`.
 
-### Step 1: Collect Inputs and Detect Path
+### Step 1: Collect inputs and detect path
 
 - Accept optional context: project name, CMS in use, known tech stack, target audience
 - **Check whether the user provided any `figma.com` URLs:**
   - If yes → **Figma path**
   - If no → **Code path** (current working directory)
 
-### Step 2: Build the Inventory (one agent)
+### Step 2: Build the inventory
 
-**Figma path** — spawn the Figma Inventory agent
-(`agents/mode-4-specs-review/figma-inventory-agent.md`) with the frame URLs. Per frame it calls
+**Figma path** — run `phases/eco-specs/figma-inventory.md` with the frame URLs. Per frame it calls
 `get_screenshot` and `get_design_context` once, extracts the annotation index first, then fills
 remaining categories by visual detection.
 
-**Code path** — spawn the Code Inventory agent
-(`agents/mode-4-specs-review/code-inventory-agent.md`) with the current working directory. It runs
-project-wide grep passes for boolean presence, then selects 2–3 representative page templates and
-scans each one individually as a "screen".
+**Code path** — run `phases/eco-specs/code-inventory.md` against the current working directory. It
+runs project-wide grep passes for boolean presence, then selects 2–3 representative page templates
+and scans each individually as a "screen".
 
-Either agent writes `workspace/element-inventory.json`. Do not proceed until it exists.
+Either writes `workspace/element-inventory.json`. Do not proceed until it exists.
 
-### Step 3: Write Both Outputs (two agents in parallel)
+### Step 3: Write both outputs
 
-Spawn both writers in the same message so they run concurrently. Neither one re-inspects Figma or
-the codebase — both read only the inventory JSON.
+The two writers are independent of each other — delegate them in parallel where the host supports
+it, otherwise run them in sequence. Neither re-inspects Figma or the codebase; both read only the
+inventory JSON.
 
-| Agent | Reads | Writes |
+| Phase | Reads | Writes |
 |---|---|---|
-| `agents/mode-4-specs-review/dev-specs-writer.md` | inventory `project.detected` + `references/ecodesign-requirements-concise.md` + `references/sustainability-checklist.md` | `workspace/dev-specs.md` |
-| `agents/mode-4-specs-review/designer-review-writer.md` | inventory `screens[]` + `references/eco-design-principles-for-designers.md` + `references/design-sobriety-principles.md` | `workspace/eco-review.md` |
+| `phases/eco-specs/dev-specs-writer.md` | inventory `project.detected` + `references/ecodesign-requirements-concise.md` + `references/sustainability-checklist.md` | `workspace/dev-specs.md` |
+| `phases/eco-specs/designer-review-writer.md` | inventory `screens[]` + `references/eco-design-principles-for-designers.md` + `references/design-sobriety-principles.md` | `workspace/eco-review.md` |
 
 The dev-specs writer does **not** run WebSearch — every reference it emits comes from the
 `**Documentation**` blocks already curated in `references/ecodesign-requirements-concise.md`.
 
 ### Step 4: Report
 
-Present all three paths to the user: the inventory JSON, `dev-specs.md`, and `eco-review.md`.
-Summarize in one line how many screens were analyzed and how many element categories were detected.
+Present all three paths: the inventory JSON, `dev-specs.md`, and `eco-review.md`. Summarize in one
+line how many screens were analyzed and how many element categories were detected.
 
 ---
 
-## Playwright CLI Quick Reference for Agents
+## Evaluate Debug Workflow (`evaluate --debug`)
 
-Each agent uses a named session to avoid conflicts:
+Measurement-only path. The coordinator runs this directly — it does **not** run the evaluator
+phase, load criteria, or run any audit phase. Goal: confirm auth + weight/Lighthouse measurement
+work, then stop so the user can inspect the result and fix the pipeline.
+
+1. **Collect URLs** — take the URL(s) explicitly provided by the user, in order. No journey
+   discovery, no crawling.
+2. **Run the shared pipeline** (`references/auth-measure-pipeline.md`):
+   - **Phase A — Auth Setup**: detect a login redirect; if found, log in and write
+     `workspace/auth-state.json`. For a public site this is a no-op.
+   - **Phase B — Measure**: run `/measure-page-weight <url...> --out workspace/debug-weights.json`.
+3. **Set `meta.source` to `"debug"`** in the written file (same per-page schema as
+   `page-weights.json`: the 8 keys `url`, `title`, `performance`, `accessibility`, `best_practices`,
+   `seo`, `initial_weight_kb`, `deferred_weight_kb`).
+4. **Print the per-page summary** (initial/deferred KB + the 4 scores) and stop. Do not load
+   criteria, do not write `lowwwimpact-evaluation.json`, do not run the synthesizer.
+
+`workspace/debug-weights.json` is intentionally a separate file — it never overwrites a real
+`workspace/page-weights.json` cache.
+
+---
+
+## Playwright CLI Quick Reference
+
+Each phase uses a named session to avoid conflicts:
 
 ```bash
 # Open session
@@ -649,92 +533,74 @@ eval snippets for resource inspection, header checking, and performance metrics.
 
 ## Output Structure
 
-### Review Mode
+### Evaluate
 
 ```
 workspace/
-├── discovery.md                     # Site structure + resource inventory from Phase 2
-├── agents/
+├── discovery.md                     # Site structure + resource inventory
+├── phases/
 │   ├── images-audit.md
 │   ├── media-fonts-audit.md
 │   ├── javascript-audit.md
 │   ├── css-html-audit.md
 │   ├── network-infra-audit.md
 │   └── carbon-performance-audit.md
-└── sustainability-report.md         # Final synthesized report
+├── page-weights.json                # Per-page weight + Lighthouse scores
+├── sustainability-report.md         # Synthesized, ranked report
+└── lowwwimpact-evaluation.json      # Criteria assessment — structure is a hard contract
 ```
 
-### Evaluate Mode — Mode 2 (additional)
-
-```
-workspace/
-└── lowwwimpact-evaluation.json      # Structured criteria assessment for human review
-```
-
-### Evaluate Debug Mode — `evaluate --debug` (measurement-only)
+### Evaluate `--debug` (measurement-only)
 
 ```
 workspace/
-├── auth-state.json                  # Saved login state (only when the site requires auth)
-└── debug-weights.json               # Per-page initial/deferred KB + 4 Lighthouse scores
+├── auth-state.json                  # Saved login state, only when the site requires auth
+└── debug-weights.json               # Per-page initial/deferred KB + the 4 Lighthouse scores
 ```
 
-### Fix Mode — Mode 3 (additional)
-
-```
-workspace/
-└── fix-plan.md                      # Persistent fix plan with criteria links and web references
-```
-
-### Specs & Review Mode — Mode 4
+### Eco-Specs
 
 ```
 workspace/
-├── element-inventory.json           # Shared discovery output — consumed by both writers
-├── dev-specs.md                     # Developer-facing eco-design specs per detected element type
-└── eco-review.md                    # Designer-facing per-screen findings + design sobriety section
+├── element-inventory.json           # Shared discovery output, consumed by both writers
+├── dev-specs.md                     # Developer-facing eco-design specs
+└── eco-review.md                    # Designer-facing per-screen findings + sobriety section
 ```
 
 ---
 
 ## Coordinator Responsibilities
 
-1. Handle Playwright CLI installation if needed
-2. Run the discovery phase to build shared context (resource inventory + sitemap)
-3. Spawn audit agents in parallel (or sequentially if no sub-agents)
-4. Ensure each agent uses its own named session (`-s=<name>`)
-5. Collect all agent reports
-6. Run the synthesizer to produce the final report
-7. Clean up browser sessions: `playwright-cli close-all`
-8. Present the final report to the user
-9. In evaluate mode (Mode 2): load criteria, run the evaluator agent with available evidence, present JSON output with summary
-   - **If `--debug` is set**: run the **Evaluate Debug Workflow** directly instead — execute the shared auth + measure pipeline, write `workspace/debug-weights.json`, present the per-page summary, and stop. Do NOT load criteria, spawn the evaluator, or run any Mode 1 agent.
-10. In fix mode (Mode 3): load evaluation JSON + sustainability report, build fix index, research references via WebSearch, write `workspace/fix-plan.md`
-11. In specs & review mode (Mode 4): detect whether Figma URLs are present; spawn the matching inventory agent (Figma or code) to write `workspace/element-inventory.json`; then spawn both writers in parallel off that JSON to produce `workspace/dev-specs.md` and `workspace/eco-review.md`. Both outputs are always produced — there are no flags.
-12. In init mode (Mode 0): run the **Init Workflow** — copy `commands/*.md` into the project's `.claude/commands/` and add the companion `@import` to `CLAUDE.md` (idempotent). Do not run any audit agent.
+1. Identify the mode from the trigger — evaluate, eco-specs, or install. Passive is never invoked.
+2. **Evaluate**: ensure Playwright is installed; run discovery; run the six audit phases
+   (delegated in parallel where supported, otherwise sequentially); run the synthesizer; load
+   criteria; run the evaluator; present both outputs with a summary.
+   - Each phase uses its own named session (`-s=<name>`).
+   - Clean up sessions when done: `playwright-cli close-all`.
+   - **If `--debug` is set**: run the **Evaluate Debug Workflow** instead — auth plus measurement,
+     write `workspace/debug-weights.json`, print the per-page summary, stop. Do not load criteria,
+     run the evaluator, or run any audit phase.
+3. **Eco-specs**: detect whether Figma URLs are present; run the matching inventory phase to write
+   `workspace/element-inventory.json`; then run both writers off that JSON. Both outputs are
+   always produced — there are no flags.
+4. **Install**: run the **Install Workflow** — detect the host, copy `commands/*.md` to its command
+   directory, inject `passive.md` into `AGENTS.md` between markers. Do not run any audit phase.
 
 ---
 
 ## Customization
 
-The user can customize the review by:
-
-- **Skipping agents**: "Skip CSS/HTML, focus on images and network"
+- **Skipping phases**: "Skip CSS/HTML, focus on images and network"
 - **Setting traffic**: "We get 500K pageviews/month" (affects annual carbon estimates)
 - **Specifying hosting**: "We're on Vercel" (affects green hosting assessment)
 - **Providing context**: "This is a Kirby CMS site with self-hosted fonts"
 - **Setting priorities**: "I care most about page weight, less about SEO metadata"
-- **Running evaluation (Mode 2)**: "Evaluate against lowwwimpact criteria" (uses Mode 1 report + live URL)
-- **Debug measurement only**: "evaluate --debug <url>" (auth + weight + Lighthouse only → `workspace/debug-weights.json`, no criteria)
+- **Debug measurement only**: `evaluate --debug <url>` — auth + weight + Lighthouse only
 - **Custom criteria file**: "Use this criteria file: path/to/custom-criteria.json"
-- **Generating fix plan (Mode 3)**: "Generate a fix plan" (uses Mode 2 evaluation JSON + Mode 1 report)
-- **Generating eco-design specs and review (Mode 4)**: "Generate eco specs" / "run an eco review" — with figma.com URLs for the Figma path, or without for the current project. Always produces both the developer specs and the designer review (fully independent — no prior modes needed)
-
-Adapt the agent roster and instructions accordingly.
 
 ---
 
-## Key Sustainability Budgets (Quick Reference)
+## Key Sustainability Budgets
 
 | Metric | Budget | Stretch |
 |--------|--------|---------|

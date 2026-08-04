@@ -16,7 +16,13 @@ and meta tags.
 - **url**: The application's entry URL
 - **discovery**: The discovery file with resource inventory and page list
 - **session**: Your Playwright CLI session name (use `-s=css-html`)
-- **output_dir**: Where to save your findings
+
+## Outputs
+
+Writes **`workspace/phases/css-html-audit.md`** — CSS/HTML findings: size, critical CSS, semantics, dark mode, reduced-motion.
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## Budgets
 
@@ -146,7 +152,7 @@ Pay special attention to pages with different layouts (blog post vs. landing pag
 
 ### Step 10: Write Findings
 
-Save to `{output_dir}/css-html-audit.md`:
+Save to `workspace/phases/css-html-audit.md`:
 
 ```markdown
 # CSS & HTML Audit

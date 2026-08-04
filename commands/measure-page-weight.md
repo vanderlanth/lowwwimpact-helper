@@ -2,11 +2,11 @@
 
 Measure `initial_weight_kb`, `deferred_weight_kb`, and Lighthouse scores (performance,
 accessibility, best_practices, seo) for one or more URLs. Saves results to the output path
-(default `workspace/page-weights.json`) which Mode 1 and Mode 2 can consume without re-measuring.
+(default `workspace/page-weights.json`) which evaluate mode can consume without re-measuring.
 
 **Usage:** `/measure-page-weight <url> [url2 url3 ...] [--out <path>]`
 
-`--out <path>` is optional and sets where the result JSON is written. Default: `workspace/page-weights.json`. (Mode 2 debug passes `--out workspace/debug-weights.json` so it never clobbers a real cache.)
+`--out <path>` is optional and sets where the result JSON is written. Default: `workspace/page-weights.json`. (evaluate `--debug` passes `--out workspace/debug-weights.json` so it never clobbers a real cache.)
 
 If `workspace/auth-state.json` exists (written by the shared auth setup — see `references/auth-measure-pipeline.md` Phase A), it is loaded automatically: via `state-load` into every Playwright session (Step 2) and via CDP injection into the Lighthouse Chrome instance (Step 3). No parameter needed.
 
@@ -404,16 +404,16 @@ Assign page keys in measurement order: first URL is `page-1`, second is `page-2`
 - `meta.url` — first URL provided
 - `meta.urls` — all URLs in measurement order
 - `meta.date` — today's date in YYYY-MM-DD format
-- `meta.source` — `"measure-page-weight"` by default; the caller may override it (Mode 2 debug sets `"debug"`)
+- `meta.source` — `"measure-page-weight"` by default; the caller may override it (evaluate `--debug` sets `"debug"`)
 - Page keys are `page-1`, `page-2`, … in measurement order
 - `title` — from `document.title` captured in the `run-code` session
 - `initial_weight_kb` — integer, from `run-code` + `requestfinished`
 - `deferred_weight_kb` — integer, from `run-code` + `requestfinished` after scrolling
 - Each page object contains **exactly these 8 keys** — do NOT add `duplicate_requests` (or anything else) inside a page.
-- `duplicate_requests` is a **separate top-level object** keyed by the same `page-N` ids, each holding an array of URLs fetched 2+ times during the measurement: `{ url, host, count, wasted_kb }`. Empty array `[]` when a page had no duplicates. This is diagnostic data for the Mode 1 network audit and the report's `/third-party-optim` findings — it is NOT consumed by the strict `pages` schema. Omit the whole `duplicate_requests` key only if every page's array is empty.
+- `duplicate_requests` is a **separate top-level object** keyed by the same `page-N` ids, each holding an array of URLs fetched 2+ times during the measurement: `{ url, host, count, wasted_kb }`. Empty array `[]` when a page had no duplicates. This is diagnostic data for the network audit phase and the report's `/third-party-optim` findings — it is NOT consumed by the strict `pages` schema. Omit the whole `duplicate_requests` key only if every page's array is empty.
 
-The `pages` block is identical to the one written by Mode 1 (`carbon-performance-audit.md`)
-and consumed by Mode 2 (`evaluator.md` Step 1.9).
+The `pages` block is identical to the one written by the carbon-performance phase (`carbon-performance-audit.md`)
+and consumed by the evaluator (`evaluator.md` Step 1.9).
 
 ### Step 5: Print Summary
 
@@ -455,14 +455,14 @@ When a page has duplicate requests, list the top offenders under it, e.g.:
 > audit should measure a clean first-time visitor, not one visitor's ad-cookie state — so an empty
 > gtag result is accurate for that baseline, not a detector failure.
 
-When the output path is the default `workspace/page-weights.json`, add: "Mode 2 (Evaluate) will use this file automatically."
+When the output path is the default `workspace/page-weights.json`, add: "Evaluate mode will use this file automatically."
 
 ---
 
 ## Notes
 
 - **Journey KB data is not included.** Journey page weights are inherently interactive and
-  sequential — they must be measured inside Mode 2's Step 1.5 where the user confirms the
+  sequential — they must be measured inside evaluate mode's Step 1.5 where the user confirms the
   navigation path. `/measure-page-weight` only covers standalone page measurements.
 
 - **Lighthouse runs in a separate Chrome instance** — it does not conflict with Playwright

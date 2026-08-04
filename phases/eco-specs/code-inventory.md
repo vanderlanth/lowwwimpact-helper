@@ -2,7 +2,7 @@
 
 ## Role
 
-You are the discovery step of Mode 4 when no Figma URLs were provided. You scan the current
+You are the discovery step of eco-specs mode when no Figma URLs were provided. You scan the current
 project directory and produce a single structured inventory file. You do **not** write specs, a
 review, findings, or recommendations — two separate writer agents consume your output and do that.
 Your only job is to record, accurately and without interpretation, what the codebase contains.
@@ -22,9 +22,15 @@ You work at **two granularities**, and both are required:
 | `project_dir` | Yes | Path to the project root (default: current working directory) |
 | `project_name` | No | Label carried into the output file headers |
 | `cms` | No | CMS in use — otherwise inferred from the file structure |
-| `output_dir` | No | Defaults to `workspace/` |
 
 ---
+
+## Outputs
+
+Writes **`workspace/element-inventory.json`** — The shared element inventory. Both writers read it; nothing else is produced here.
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## File-type sets (use in every grep)
 
@@ -237,7 +243,7 @@ Read each template in full and record:
 
 ## Step 6 — Write the inventory
 
-Write `{output_dir}/element-inventory.json` using the exact same schema as the Figma path, with
+Write `workspace/element-inventory.json` using the exact same schema as the Figma path, with
 `"source": "code"`:
 
 ```jsonc

@@ -5,6 +5,66 @@ All notable changes to this skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] — 2026-08-04
+
+Restructure around three named modes, portable across hosts.
+
+### Changed
+
+- **Modes are named, not numbered:** **passive**, **evaluate**, **eco-specs**. The numbering had
+  changed twice, which made it the worst possible way to name things people type.
+- **Evaluate absorbs the old review and evaluate modes** into one pipeline: discovery → six audit
+  phases → synthesis → measurement → criteria. One command, two outputs
+  (`sustainability-report.md`, `lowwwimpact-evaluation.json`). The old three-tier evidence chain
+  existed only to cope with the audit not having run; inside one pipeline it is unnecessary.
+- **`agents/` → `phases/`,** split into `phases/evaluate/` and `phases/eco-specs/`. Each phase
+  declares `## Inputs` and `## Outputs`, reads and writes only fixed `workspace/` paths, and takes
+  no parameters — so a host without subagents runs them in sequence for the same result. The
+  delegate-if-available rule is stated once in `SKILL.md` instead of per file.
+- **Per-phase reports moved** from `workspace/agents/` to `workspace/phases/`.
+- **`companion.md` → `passive.md`,** rewritten as a router: it names the integration moment and
+  points at the numbered block in `references/ecodesign-requirements-concise.md` rather than
+  restating the guidance at lower resolution.
+- **Install is host-aware.** It detects Claude Code, opencode, or Cursor from where the skill sits
+  and copies commands to that host's directory. Fixes a live bug: a Cursor user following the
+  README cloned to `.cursor/skills/` and init halted because it only looked in `.claude/skills/`.
+- **Passive mode installs into `AGENTS.md`** by injection between
+  `<!-- lowwwimpact:passive:start -->` / `<!-- lowwwimpact:passive:end -->` markers, replaced on
+  re-run. `CLAUDE.md` gets a single `@AGENTS.md` line on Claude Code. Injection replaces the old
+  `@path` import because that syntax is Claude Code-only; the trade-off is that the block goes
+  stale until init is re-run.
+- **Audit findings now cite both** a requirement block and a fix command — the block works in any
+  host and carries the documentation links, the command executes the fix where a command runner
+  exists.
+
+### Added
+
+- **`references/valid-example.json` is now wired in as the evaluate output contract.** It was in
+  the repo but referenced by nothing, so the evaluator had been assembling output from partial
+  inline fragments that never showed `lighthouse_recap` or `recommendations`. It is now a required
+  input, with the shape documented in both `SKILL.md` and the evaluator — including that `pages`
+  and `journeys` are objects keyed `page-N` / `journey-N`, not arrays.
+- **`scripts/validate-evaluation.py`** — enforces that contract. Non-zero exit means the run is
+  invalid regardless of the quality of its findings.
+- **`/lowwwimpact-evaluate` and `/lowwwimpact-eco-specs`** commands, so modes are invoked the same
+  way in every host rather than depending on Claude Code skill auto-discovery.
+- Host and model support documented honestly in `README.md`: hosts are portable, but the criteria
+  evaluation needs a large-context model and will not work on a small local one.
+
+### Removed
+
+- **BREAKING — fix mode is gone.** No `workspace/fix-plan.md`. The synthesizer keeps its
+  KB-ranked Fix Command Summary inside the audit report; it simply no longer feeds a second mode.
+- **BREAKING — numbered mode invocations no longer resolve.** "mode 1" … "mode 4" are not
+  recognized; use the names or the commands.
+
+### Unchanged, deliberately
+
+Measurement is frozen. `references/auth-measure-pipeline.md`, `commands/measure-page-weight.md`,
+and every measurement step in the evaluator received label renames only — no logic edits. Every run
+still measures cold, with no artifact reuse, because the semantics depend on genuine cold loads and
+reused numbers would not be comparable across runs.
+
 ## [2.0.0] — 2026-08-04
 
 ### Changed

@@ -1,8 +1,8 @@
 # Auth + Measure Pipeline (shared)
 
 Single source of truth for **authenticating** against a site and **measuring** its pages
-(initial/deferred KB weight + the 4 Lighthouse scores). Both the Mode 2 evaluator and the
-Mode 2 debug flow (`evaluate --debug`) run this pipeline, so any fix made here applies to both.
+(initial/deferred KB weight + the 4 Lighthouse scores). Both the evaluate mode evaluator and the
+evaluate debug flow (`evaluate --debug`) run this pipeline, so any fix made here applies to both.
 
 The pipeline has two phases:
 
@@ -119,7 +119,7 @@ the saved auth state was not accepted. Recover by:
 
 If it still fails, the failure is in one of three injection points, in order of likelihood: the login
 form fill (Phase A), the `state-load` into the weight session, or the Lighthouse CDP auth injection.
-The Mode 2 debug flow (`evaluate --debug`) exists to isolate which one.
+The evaluate debug flow (`evaluate --debug`) exists to isolate which one.
 
 **Hash-route SPAs** (auth gated by a token/timestamp in `localStorage`, e.g. URLs like
 `https://site/en#/section`): `state-save`/`state-load` carry the localStorage origin across sessions,

@@ -62,7 +62,13 @@ grade. You also check whether the site is hosted on renewable energy.
 - **url**: The application's entry URL
 - **discovery**: The discovery file with resource inventory and page list
 - **session**: Your Playwright CLI session name (use `-s=carbon-perf`)
-- **output_dir**: Where to save your findings
+
+## Outputs
+
+Writes **`workspace/phases/carbon-performance-audit.md`** — Carbon and performance findings, plus `workspace/page-weights.json`.
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## Budgets & Thresholds
 
@@ -313,7 +319,7 @@ CHROME_PATH="$CHROME" npx lighthouse <url> \
     });
     process.stdout.write(JSON.stringify(r));
   });
-" > ./workspace/agents/lighthouse-<slug>.json
+" > ./workspace/phases/lighthouse-<slug>.json
 ```
 
 Read each output file and extract **only** `lhr.categories`:
@@ -328,7 +334,7 @@ failure block the rest of the audit.
 
 ### Step 8: Write Findings
 
-Save to `{output_dir}/carbon-performance-audit.md`:
+Save to `workspace/phases/carbon-performance-audit.md`:
 
 ```markdown
 # Carbon & Performance Audit
@@ -455,7 +461,7 @@ This block is parsed by the synthesizer and evaluator agents — keep it valid J
 ### Step 8.5: Write `workspace/page-weights.json`
 
 After writing the markdown report, also write `workspace/page-weights.json` using the same
-`pages` data from the machine-readable block above. This cache file is consumed by Mode 2
+`pages` data from the machine-readable block above. This cache file is consumed by evaluate mode
 (evaluator) and by the `/measure-page-weight` command — both check for it before running their
 own Lighthouse or weight measurements.
 

@@ -16,7 +16,13 @@ unnecessarily and which font strategies waste bandwidth.
 - **url**: The application's entry URL
 - **discovery**: The discovery file with resource inventory and page list
 - **session**: Your Playwright CLI session name (use `-s=media-fonts`)
-- **output_dir**: Where to save your findings
+
+## Outputs
+
+Writes **`workspace/phases/media-fonts-audit.md`** — Video/audio and font findings: facades, WOFF2, subsetting, animation.
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## Budgets
 
@@ -157,7 +163,7 @@ Focus on pages likely to have media: blog posts, galleries, landing pages.
 
 ### Step 8: Write Findings
 
-Save to `{output_dir}/media-fonts-audit.md`:
+Save to `workspace/phases/media-fonts-audit.md`:
 
 ```markdown
 # Media & Fonts Audit

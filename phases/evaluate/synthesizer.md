@@ -16,7 +16,13 @@ tackled for maximum cumulative effect.
 - **agent_reports_dir**: Directory containing all agent report files
 - **context**: Original user context (app description, audience, priorities)
 - **report_template**: The report template from `references/report-template.md`
-- **output_dir**: Where to save the final report
+
+## Outputs
+
+Writes **`workspace/sustainability-report.md`** — The synthesized report. Reads all six audit reports from `workspace/phases/`.
+
+This phase reads and writes only the paths named here. It may be run inline or delegated;
+it does not receive parameters.
 
 ## Process
 
@@ -170,7 +176,7 @@ Sum all estimated savings to project the optimized state:
 
 ### Step 10: Write Final Report
 
-Save to `{output_dir}/sustainability-report.md` using the template from
+Save to `workspace/sustainability-report.md` using the template from
 `references/report-template.md`. Fill every section.
 
 At the end of the report, append an **Appendix: Lighthouse Data** section containing the
