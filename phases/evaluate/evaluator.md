@@ -87,7 +87,7 @@ For each journey description, discover the **most direct path** in two phases be
 
 **Phase A — Route exploration** (speculative navigation, no measurements):
 
-1. Open a dedicated session: `playwright-cli -s=journey-N open <primary_url>`
+1. Open a dedicated session: `playwright-cli -s=journey-N --browser=chromium open <primary_url>`
 2. Read the use case goal in full, then explore the site to find the shortest path that satisfies it:
    - Snapshot each page to identify candidate links:
      `playwright-cli -s=journey-N snapshot --filename=journey-N-explore-stepM.txt`
@@ -104,7 +104,7 @@ call so the listener is set up before the first navigation:
 
 ```bash
 playwright-cli -s=journey-N close
-playwright-cli -s=journey-N open
+playwright-cli -s=journey-N --browser=chromium open
 playwright-cli -s=journey-N resize 1440 760
 # Inject saved auth (login) BEFORE the first navigation, if present — a journey behind a login
 # needs it or step 1 bounces to the login page. Same state-load as the standalone measurement.
@@ -127,9 +127,39 @@ playwright-cli -s=journey-N run-code "async (page) => {
   const requests = [];
   page.context().on('requestfinished', (req) => requests.push(req));
 
+  // Identical to the standalone getKB in commands/measure-page-weight.md — 206 partial responses of
+  // the same URL are one chunked media download, so their ranges are unioned and counted once;
+  // 200 responses are summed. Keep the two in sync.
+  const meta = async (r) => {
+    let bytes = 0, status = null, cr = null;
+    try { const s = await r.sizes(); if (s && s.responseBodySize > 0) bytes = s.responseBodySize; } catch (e) {}
+    try { const resp = await r.response(); if (resp) { status = resp.status(); cr = (await resp.allHeaders())['content-range'] || null; } } catch (e) {}
+    return { url: r.url(), bytes, status, cr };
+  };
   const getKB = async (reqs) => {
-    const sizes = await Promise.all(reqs.map(r => r.sizes().catch(() => null)));
-    const bytes = sizes.reduce((s, v) => s + (v?.responseBodySize > 0 ? v.responseBodySize : 0), 0);
+    const infos = await Promise.all(reqs.map(meta));
+    const ranges = new Map();
+    let bytes = 0;
+    for (const i of infos) {
+      if (!i.bytes) continue;
+      const m = i.status === 206 && i.cr ? i.cr.match(/bytes\s+(\d+)-(\d+)\//i) : null;
+      if (m) {
+        if (!ranges.has(i.url)) ranges.set(i.url, []);
+        ranges.get(i.url).push([+m[1], +m[2] + 1]);
+      } else {
+        bytes += i.bytes;
+      }
+    }
+    for (const [, ivs] of ranges) {
+      ivs.sort((a, b) => a[0] - b[0]);
+      let s0 = null, e0 = null;
+      for (const [s, e] of ivs) {
+        if (s0 === null) { s0 = s; e0 = e; }
+        else if (s <= e0) { e0 = Math.max(e0, e); }
+        else { bytes += e0 - s0; s0 = s; e0 = e; }
+      }
+      if (s0 !== null) bytes += e0 - s0;
+    }
     return Math.round(bytes / 1000);
   };
 
@@ -217,11 +247,32 @@ journey data, or correct any URL and I will re-discover from that point.
 
 Check whether `workspace/page-weights.json` exists.
 
-If it **exists**:
+If it **exists**, first **validate it before trusting it**. The cache is only usable when *all*
+of these hold:
+
+- `meta.source` is `"measure-page-weight"` — the one canonical measurement procedure
+- every page entry has all 8 keys (`url`, `title`, `performance`, `accessibility`,
+  `best_practices`, `seo`, `initial_weight_kb`, `deferred_weight_kb`)
+- no weight or score field is `null`
+- `meta.urls` covers the URLs being evaluated
+
+> **Why the `meta.source` check.** A cache written by any other producer is a sign the weights
+> came from a divergent measurement. That is exactly how weights once landed 2–5× below reality:
+> the carbon-performance phase wrote its own thinner numbers here, and this step accepted them
+> and skipped the real measurement. Any source other than `measure-page-weight` is stale by
+> definition — re-measure rather than trust it.
+
+If the file **validates**:
 - Parse the file and load its `pages` object as `lighthouse_pages`
-- Set `lighthouse_source` to the value of `meta.source` (e.g. `"measure-page-weight"` or `"carbon-performance-audit"`)
+- Set `lighthouse_source = "measure-page-weight"`
 - Skip the machine-readable block search in Step 2 (do not parse it again — use this cache instead)
 - Skip Step 3.5 entirely
+
+If the file **exists but fails validation**:
+- Discard it — set `lighthouse_pages = null` and `lighthouse_source = null`
+- Note which check failed (this is a skill bug worth reporting, not a site problem)
+- Continue normally so **Step 3.5 runs** and re-measures via `/measure-page-weight`, overwriting
+  the stale file
 
 If it **does not exist**:
 - Set `lighthouse_pages = null` and `lighthouse_source = null`
@@ -256,9 +307,15 @@ that tells you which agent reports contain relevant evidence.
 
 After reading, look for the `## Lighthouse Data (machine-readable)` fenced JSON block in either
 `sustainability-report.md` (preferred — the synthesizer copies it there) or
-`carbon-performance-audit.md`. Parse the JSON and store the `pages` object as `lighthouse_pages`.
-If found, set `lighthouse_source = "carbon-performance-audit"`. If the block is absent or
-malformed in both files, set `lighthouse_pages = null` and `lighthouse_source = null`.
+`carbon-performance-audit.md`. That block is a restatement of `/measure-page-weight` output, so
+apply the **same validation as Step 1.9** — all 8 keys present on every page, no `null` weight or
+score fields, and coverage of the URLs being evaluated.
+
+If it validates, store the `pages` object as `lighthouse_pages` and set
+`lighthouse_source = "carbon-performance-audit"`. If the block is absent, malformed, or fails
+validation in both files, set `lighthouse_pages = null` and `lighthouse_source = null` — Step 3.5
+will then measure directly, which is the correct outcome. Never fill gaps in this block by
+estimating.
 
 ### Step 2.5: Load W3C Web Sustainability Guidelines
 
@@ -306,7 +363,7 @@ For each URL (use a slug derived from the URL, e.g. `eval-home`, `eval-about`):
 **If `auth_state` is null (public site):**
 
 ```bash
-playwright-cli -s=eval-<slug> open <url>
+playwright-cli -s=eval-<slug> --browser=chromium open <url>
 playwright-cli -s=eval-<slug> resize 1440 760
 playwright-cli -s=eval-<slug> network
 playwright-cli -s=eval-<slug> snapshot --filename=eval-<slug>.txt
@@ -357,7 +414,7 @@ that don't depend on load state.
 playwright-cli -s=eval-<slug> close
 
 # Then open next URL in a new session:
-playwright-cli -s=eval-<slug2> open <url2>
+playwright-cli -s=eval-<slug2> --browser=chromium open <url2>
 # ... same scroll + capture sequence ...
 playwright-cli -s=eval-<slug2> close
 ```

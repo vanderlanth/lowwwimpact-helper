@@ -38,7 +38,7 @@ it does not receive parameters.
 
 ### Step 1: Inventory Video & Audio Elements
 
-1. Open URL: `playwright-cli -s=media-fonts open <url>`
+1. Open URL: `playwright-cli -s=media-fonts --browser=chromium open <url>`
    Set standard audit viewport: `playwright-cli -s=media-fonts resize 1440 760`
 2. Wait for full load: `playwright-cli -s=media-fonts network`
 3. Snapshot: `playwright-cli -s=media-fonts snapshot --filename=media-main.txt`

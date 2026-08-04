@@ -34,7 +34,7 @@ it does not receive parameters.
 
 ### Step 1: Inventory All JavaScript
 
-1. Open URL: `playwright-cli -s=js-audit open <url>`
+1. Open URL: `playwright-cli -s=js-audit --browser=chromium open <url>`
    Set standard audit viewport: `playwright-cli -s=js-audit resize 1440 760`
 2. Wait for full load, then capture network data: `playwright-cli -s=js-audit network`
 3. Snapshot: `playwright-cli -s=js-audit snapshot --filename=js-main.txt`

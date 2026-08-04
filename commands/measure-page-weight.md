@@ -47,7 +47,7 @@ all bytes including cross-origin resources.
 > by 30–50%.
 
 ```bash
-playwright-cli -s=measure-N open
+playwright-cli -s=measure-N --browser=chromium open
 playwright-cli -s=measure-N resize 1440 760
 # Inject saved auth (cookies + per-origin localStorage) BEFORE any navigation, if present.
 # state-load is a no-op to skip when the file does not exist (public site).
@@ -56,9 +56,44 @@ playwright-cli -s=measure-N resize 1440 760
 
 ```bash
 playwright-cli -s=measure-N run-code "async (page) => {
+  // Collect status + Content-Range once per request; both getKB and the duplicate detector need it.
+  const meta = async (r) => {
+    let bytes = 0, status = null, cr = null;
+    try { const s = await r.sizes(); if (s && s.responseBodySize > 0) bytes = s.responseBodySize; } catch (e) {}
+    try { const resp = await r.response(); if (resp) { status = resp.status(); cr = (await resp.allHeaders())['content-range'] || null; } } catch (e) {}
+    return { url: r.url(), bytes, status, cr };
+  };
+
+  // Sum transferred bytes. A 206 partial response is ONE chunk of a single logical download, not a
+  // re-download: Chrome splits media fetches into several Range requests (and on a non-faststart MP4
+  // it opens a second request just to grab the trailing moov atom). Summing those response bodies
+  // double-counts the file. So 206 chunks of the same URL have their byte ranges UNIONED and the
+  // union is counted once; 200 responses are summed normally, because a genuine second full fetch of
+  // the same URL really did cross the wire twice and belongs in the weight.
   const getKB = async (reqs) => {
-    const sizes = await Promise.all(reqs.map(r => r.sizes().catch(() => null)));
-    const bytes = sizes.reduce((s, v) => s + (v?.responseBodySize > 0 ? v.responseBodySize : 0), 0);
+    const infos = await Promise.all(reqs.map(meta));
+    const ranges = new Map();
+    let bytes = 0;
+    for (const i of infos) {
+      if (!i.bytes) continue;
+      const m = i.status === 206 && i.cr ? i.cr.match(/bytes\s+(\d+)-(\d+)\//i) : null;
+      if (m) {
+        if (!ranges.has(i.url)) ranges.set(i.url, []);
+        ranges.get(i.url).push([+m[1], +m[2] + 1]);
+      } else {
+        bytes += i.bytes;
+      }
+    }
+    for (const [, ivs] of ranges) {
+      ivs.sort((a, b) => a[0] - b[0]);
+      let s0 = null, e0 = null;
+      for (const [s, e] of ivs) {
+        if (s0 === null) { s0 = s; e0 = e; }
+        else if (s <= e0) { e0 = Math.max(e0, e); }
+        else { bytes += e0 - s0; s0 = s; e0 = e; }
+      }
+      if (s0 !== null) bytes += e0 - s0;
+    }
     return Math.round(bytes / 1000);
   };
 
@@ -109,12 +144,16 @@ playwright-cli -s=measure-N run-code "async (page) => {
   // re-downloads: a third-party tag pulled in twice, an un-deduplicated bundle). Uses the same
   // requestfinished + responseBodySize data, so cross-origin bytes are counted accurately (unlike
   // the Performance API, which reports 0 for third-party). wasted_kb = every load beyond the first.
+  //
+  // 206 partial responses are EXCLUDED for the same reason getKB unions them: multiple Range
+  // requests for one media file are how the browser streams it, not waste. Counting them here
+  // reported ~987 KB 'wasted' on a 1 MB video that was only ever fetched once — and did so
+  // non-deterministically, since how many chunks complete varies per run.
   const urlMap = new Map();
-  for (const r of requests) {
-    let s = null; try { s = await r.sizes(); } catch (e) {}
-    const bytes = s && s.responseBodySize > 0 ? s.responseBodySize : 0;
-    if (!urlMap.has(r.url())) urlMap.set(r.url(), []);
-    urlMap.get(r.url()).push(bytes);
+  for (const i of await Promise.all(requests.map(meta))) {
+    if (i.status === 206) continue;
+    if (!urlMap.has(i.url)) urlMap.set(i.url, []);
+    urlMap.get(i.url).push(i.bytes);
   }
   const duplicate_requests = [];
   for (const [u, arr] of urlMap) {
@@ -147,6 +186,7 @@ target. Re-run **Phase A** of `references/auth-measure-pipeline.md` to refresh
 - `initial_weight_kb` — total bytes transferred on first load, divided by 1000
 - `deferred_weight_kb` — cumulative total after scrolling to the bottom (NOT a delta — always ≥ `initial_weight_kb`)
 - Both values are captured via `requestfinished` + `responseBodySize`, which covers all resources including cross-origin third-party requests
+- **206 partial responses count once.** Media is streamed as several HTTP Range requests, so summing their response bodies inflates the weight. Ranges are unioned per URL instead. A resource fetched through *many* ranges — especially an MP4 where a second request grabs the file's tail immediately after the first starts — usually means the MP4 is not **faststart**: its `moov` metadata atom sits at the end, so the browser must go get it before it can play. That is a real finding for `/media-optim`; the fix is a lossless remux (`ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4`), not a re-encode
 - `deferred_weight_kb` is a **conservative lower bound** and the measurement loads each resource **once** (a clean single-pass visit). A real, longer, interactive browser session on a third-party-heavy page can total 5–20% higher because ad/analytics/chat tags **re-fire the same requests** — verified against DevTools HARs where liip's live session loaded Google Ads `gtag` twice, the hero video three times, and the Piwik beacon six times, while the automated visit loaded each once. That extra is duplicate third-party traffic, not additional page content; reproducing it would make measurements non-deterministic, so the skill deliberately measures one clean load. `initial_weight_kb` (first-load transfer) is the most stable, reproducible number — weight it most heavily when comparing against external benchmarks, and expect deferred to sit at or slightly below a real-session DevTools total.
 
 ### Step 3: Run Lighthouse for Each URL

@@ -5,47 +5,34 @@ sustainability budgets, and evaluate hosting and delivery efficiency.
 
 ## ⚠️ MANDATORY FIRST ACTION — DO THIS BEFORE ANYTHING ELSE
 
-Before writing a single word of analysis, you MUST measure `initial_weight_kb` and
-`deferred_weight_kb` for every page using the exact procedure below. No other measurement
-method is acceptable — not `curl`, not `performance.getEntriesByType()`, not Lighthouse
-`network-requests`, not estimates. Only this `run-code` + `requestfinished` approach captures
-all requests including cross-origin resources at full decompressed size.
+Before writing a single word of analysis, you MUST obtain `initial_weight_kb` and
+`deferred_weight_kb` for every page in scope by running the `/measure-page-weight` command.
+That command is the **single canonical measurement procedure** for this skill. Do not
+re-implement it here, and do not substitute any other method — not `curl`, not
+`performance.getEntriesByType()`, not Lighthouse `network-requests`, not estimates.
 
-**For each page to measure:**
+**Determine the page list first**, then measure them all in one call: the landing page plus the
+2–3 additional pages you will compare in Step 6. Measuring them together lets the command give
+each page its own cold, cache-cleared session.
 
-```bash
-# 1. Open a BLANK session — NO URL
-playwright-cli -s=carbon-perf open
-playwright-cli -s=carbon-perf resize 1440 760
-
-# 2. Navigate and measure inside a single run-code call
-playwright-cli -s=carbon-perf run-code "async (page) => {
-  const requests = [];
-  page.context().on('requestfinished', (req) => requests.push(req));
-  await page.goto('<url>', { waitUntil: 'load' });
-  await page.waitForTimeout(5000);
-  const getKB = async (reqs) => {
-    const sizes = await Promise.all(reqs.map(r => r.sizes().catch(() => null)));
-    const bytes = sizes.reduce((s, v) => s + (v?.responseBodySize > 0 ? v.responseBodySize : 0), 0);
-    return Math.round(bytes / 1000);
-  };
-  const initial_weight_kb = await getKB(requests.slice());
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.25));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.5));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.75));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(3000);
-  const deferred_weight_kb = await getKB(requests.slice());
-  return { initial_weight_kb, deferred_weight_kb };
-}"
-# → record initial_weight_kb and deferred_weight_kb for this page
+```
+/measure-page-weight <landing-url> [<url2> <url3> ...]
 ```
 
-Save these values. They are the authoritative weight measurements for every calculation,
-table, and the machine-readable block. Do not replace or supplement them with any other figure.
+The command writes `workspace/page-weights.json`. Read it and use its `pages` object as the
+authoritative source for every calculation, table, and the machine-readable block below. Its
+`duplicate_requests` block feeds the network-audit and `/third-party-optim` findings.
+
+> **Why delegation, not a local copy.** An earlier version of this file carried its own inline
+> `run-code` measurement. It drifted out of sync with the command and silently undercounted:
+> no cookie-consent click (consent-gated third-party bytes never loaded), no `deviceScaleFactor: 2`
+> (1x instead of 2x responsive images), no `Network.clearBrowserCache` combined with a session
+> reused across Step 6's pages (inner pages measured warm — shared CSS/JS/font bytes counted as 0),
+> and no `state-load` of `workspace/auth-state.json` (authenticated sites measured the login page).
+> Keep exactly one implementation, in `commands/measure-page-weight.md`.
+
+If a page's measurement comes back `null`, or `final_url` shows an auth bounce, follow the
+recovery guidance in `commands/measure-page-weight.md` before recording anything.
 
 ---
 
@@ -65,7 +52,10 @@ grade. You also check whether the site is hosted on renewable energy.
 
 ## Outputs
 
-Writes **`workspace/phases/carbon-performance-audit.md`** — Carbon and performance findings, plus `workspace/page-weights.json`.
+Writes **`workspace/phases/carbon-performance-audit.md`** — Carbon and performance findings.
+
+It does **not** write `workspace/page-weights.json`; that file belongs to `/measure-page-weight`,
+which this phase invokes and then reads.
 
 This phase reads and writes only the paths named here. It may be run inline or delegated;
 it does not receive parameters.
@@ -120,63 +110,41 @@ Green hosting adjustment: multiply by **0.75** (assumes ~25% grid offset by rene
 
 ### Step 1: Capture Full Resource Inventory
 
-1. Open a **blank** session (NO URL) and set viewport:
+1. **Weights come from `/measure-page-weight`** (see the MANDATORY FIRST ACTION above). By this
+   point `workspace/page-weights.json` exists; read it and keep its `pages` object at hand.
+   `initial_weight_kb`, `deferred_weight_kb`, `title`, and the four Lighthouse scores for every
+   page all come from that file. Never re-measure them here.
+
+2. The remaining data in this step is **per-asset-type breakdown and performance timings**, which
+   the weights file does not carry. Open a **fresh session per page** (a reused session would serve
+   inner pages from a warm cache and skew the breakdown), navigate, scroll, and read the
+   Performance API:
 
    ```bash
-   playwright-cli -s=carbon-perf open
+   # One session per page — close it before moving to the next.
+   playwright-cli -s=carbon-perf --browser=chromium open
    playwright-cli -s=carbon-perf resize 1440 760
+   [ -f workspace/auth-state.json ] && playwright-cli -s=carbon-perf state-load workspace/auth-state.json
+   playwright-cli -s=carbon-perf goto <url>
+   playwright-cli -s=carbon-perf eval "new Promise(r => setTimeout(r, 5000))"
    ```
 
-   > **CRITICAL — do NOT pass a URL to `open`**. The navigation happens inside the `run-code`
-   > call below. If you open with a URL first, the `requestfinished` listener is registered after
-   > the page has already loaded and the measurement will silently undercount by 30–50%.
-
-2. Navigate and measure `initial_weight_kb` + `deferred_weight_kb` in one `run-code` call.
-   The listener is set up before navigation to capture all requests including cross-origin iframes.
-   Bytes are divided by 1000 to report KB (the unit used everywhere in this skill):
-
-```bash
-playwright-cli -s=carbon-perf run-code "async (page) => {
-  const requests = [];
-  page.context().on('requestfinished', (req) => requests.push(req));
-  await page.goto('<url>', { waitUntil: 'load' });
-  await page.waitForTimeout(5000);
-  const getKB = async (reqs) => {
-    const sizes = await Promise.all(reqs.map(r => r.sizes().catch(() => null)));
-    const bytes = sizes.reduce((s, v) => s + (v?.responseBodySize > 0 ? v.responseBodySize : 0), 0);
-    return Math.round(bytes / 1000);
-  };
-  const initial_weight_kb = await getKB(requests.slice());
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.25));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.5));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.75));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(3000);
-  const deferred_weight_kb = await getKB(requests.slice());
-  return { initial_weight_kb, deferred_weight_kb };
-}"
-# → save initial_weight_kb and deferred_weight_kb for this page
-```
-
-After the `run-code`, the session is at `<url>`. Get the resource breakdown and title:
+   > **The breakdown is proportional evidence only.** Performance API `transferSize` is compressed
+   > and reports 0 for cross-origin resources without `Timing-Allow-Origin`, so `breakdown_total_kb`
+   > will be well below `initial_weight_kb`. Use the breakdown to see *which asset types dominate*
+   > and to fill the budget table's relative picture — never as a total, and never in the
+   > machine-readable block.
 
 ```bash
 playwright-cli -s=carbon-perf eval "(function() { const resources = performance.getEntriesByType('resource'); const nav = performance.getEntriesByType('navigation')[0]; const byType = {}; resources.forEach(r => { let type = 'other'; if (/image/.test(r.initiatorType) || /\\.(jpg|jpeg|png|gif|webp|avif|svg|ico)/.test(r.name)) type = 'images'; else if (r.initiatorType === 'script' || /\\.js/.test(r.name)) type = 'javascript'; else if (r.initiatorType === 'css' || /\\.css/.test(r.name)) type = 'css'; else if (/\\.(woff2?|ttf|otf|eot)/.test(r.name)) type = 'fonts'; if (!byType[type]) byType[type] = { count: 0, bytes: 0 }; byType[type].count++; byType[type].bytes += r.transferSize || 0; }); const htmlBytes = nav?.transferSize || 0; byType['html'] = { count: 1, bytes: htmlBytes }; const total = Object.values(byType).reduce((s, t) => s + t.bytes, 0); return JSON.stringify({ breakdown_total_kb: Math.round(total/1024), totalRequests: resources.length + 1, breakdown: Object.entries(byType).map(([type, data]) => ({ type, count: data.count, kb: Math.round(data.bytes/1024) })).sort((a,b) => b.kb - a.kb) }); })()"
 ```
 
-```bash
-playwright-cli -s=carbon-perf eval "document.title"
-# → save as page_title for the landing page
-```
-
-Repeat the `run-code` weight measurement for each additional page visited in Step 6.
+Repeat this breakdown session for each additional page compared in Step 6, closing the session
+between pages. Page titles come from `page-weights.json`, not from a separate `eval`.
 
 ### Step 2: Calculate Carbon Per Pageview
 
-Using the data from Step 1, calculate. Use `initial_weight_kb` from the `run-code` result — not `breakdown_total_kb` from the breakdown eval (that value is Performance API only and undercounts cross-origin resources):
+Using the data from Step 1, calculate. Use `initial_weight_kb` from `workspace/page-weights.json` — not `breakdown_total_kb` from the breakdown eval (that value is Performance API only and undercounts cross-origin resources):
 
 ```
 Data transfer (GB) = initial_weight_kb / 1024 / 1024
@@ -262,7 +230,9 @@ Flag:
 
 ### Step 6: Compare Pages
 
-Visit 2-3 additional pages from the discovery sitemap and repeat the resource inventory.
+These are the 2-3 additional pages from the discovery sitemap that you already passed to
+`/measure-page-weight` in the MANDATORY FIRST ACTION. Take their weights from
+`workspace/page-weights.json` and repeat the Step 1.2 breakdown session for each.
 Compare page weights across pages to identify:
 - Heaviest pages (optimization priority)
 - Common resources loaded on every page (caching opportunity)
@@ -278,12 +248,22 @@ Flag:
 - CDN detected — sustainability concern: CDN adds always-on edge infrastructure; list detected providers
 - No CDN detected — positive: origin-only delivery, lower infrastructure footprint
 
-### Step 7.5: Run Lighthouse Audits
+### Step 7.5: Lighthouse Scores
 
-For each URL audited (landing page + pages visited in Step 6), run Lighthouse to capture
-authoritative performance, accessibility, best-practices, and SEO scores. Replace non-alphanumeric
-characters in the URL with `-` to produce a `slug` (e.g., `https://example.com/about` →
-`example-com-about`):
+**`/measure-page-weight` already ran Lighthouse for every URL you gave it**, and
+`workspace/page-weights.json` carries the four scores per page. Read them from there — do not
+re-run Lighthouse for a URL that already has scores.
+
+Run the fallback below **only** for a URL that is missing from `page-weights.json` (e.g. a page
+added to the comparison set after the measurement pass). Prefer instead re-running
+`/measure-page-weight` with the full URL list, which keeps weights and scores consistent and
+handles the auth, consent, and Speed-Index-retry cases this fallback does not.
+
+<details>
+<summary>Fallback: standalone Lighthouse for an unmeasured URL</summary>
+
+Replace non-alphanumeric characters in the URL with `-` to produce a `slug` (e.g.,
+`https://example.com/about` → `example-com-about`):
 
 > **Use `--preset=desktop` plus an explicit 1440×760 screen override.** The default throttling is
 > the *mobile* profile (Slow 4G + 4× CPU) and under-reports performance; `--preset=desktop` applies
@@ -332,6 +312,8 @@ If `npx lighthouse` fails (unavailable, timeout, non-zero exit): record all four
 `null` and add a note: "Lighthouse unavailable — scores not collected". Do not let a Lighthouse
 failure block the rest of the audit.
 
+</details>
+
 ### Step 8: Write Findings
 
 Save to `workspace/phases/carbon-performance-audit.md`:
@@ -369,7 +351,13 @@ Save to `workspace/phases/carbon-performance-audit.md`:
 | Fonts | X KB | < 50 KB | PASS/OVER | X% |
 | HTML | X KB | < 50 KB | PASS/OVER | X% |
 | Other | X KB | — | — | X% |
-| **Total** | **X KB** | **< 1.5 MB** | **PASS/OVER** | **100%** |
+| **Total (measured)** | **X KB** | **< 1.5 MB** | **PASS/OVER** | **100%** |
+
+> Per-type rows are Performance API figures — compressed, and 0 for cross-origin resources without
+> `Timing-Allow-Origin`. Read them as **shares of the total**, and expect them to sum to less than
+> the measured total. The **Total row is `initial_weight_kb` from `workspace/page-weights.json`**,
+> not the sum of the rows above it; it is the only number checked against the 1.5 MB budget. State
+> the gap between the two explicitly — it is roughly the uncounted third-party weight.
 
 **HTTP Requests**: [N] (budget: < 30) — [PASS/OVER]
 **Third-party domains**: [N] (budget: < 4) — [PASS/OVER]
@@ -454,42 +442,23 @@ Fill in all page entries (page-1, page-2, …) in the order pages were audited. 
 failed for a URL, set all four score fields to `null` and add `"lighthouse_error": "<reason>"`.
 This block is parsed by the synthesizer and evaluator agents — keep it valid JSON.
 
-**CRITICAL — weight values in this block:**
-- `initial_weight_kb` and `deferred_weight_kb` MUST be the values returned by the `run-code` call in Step 1 (`requestfinished` + `responseBodySize`).
-- NEVER use `breakdown_total_kb` from the breakdown eval for these fields — that value is Performance API only, compressed, and CORS-restricted. It will be 2–5× lower than the correct measurement.
+**CRITICAL — weight and score values in this block:**
+- Every field MUST be copied verbatim from `workspace/page-weights.json` (written by
+  `/measure-page-weight`). This block is a restatement of that file, not a second measurement.
+- NEVER use `breakdown_total_kb` from the breakdown eval for the weight fields — that value is
+  Performance API only, compressed, and CORS-restricted. It will be 2–5× lower than the correct
+  measurement.
 
-### Step 8.5: Write `workspace/page-weights.json`
+### Step 8.5: Do NOT rewrite `workspace/page-weights.json`
 
-After writing the markdown report, also write `workspace/page-weights.json` using the same
-`pages` data from the machine-readable block above. This cache file is consumed by evaluate mode
-(evaluator) and by the `/measure-page-weight` command — both check for it before running their
-own Lighthouse or weight measurements.
+`/measure-page-weight` already wrote that file, with the full schema (including `final_url` checks
+and the top-level `duplicate_requests` block) and `meta.source: "measure-page-weight"`. Leave it
+exactly as written.
 
-```json
-{
-  "meta": {
-    "url": "<landing page URL>",
-    "urls": ["<page-1 url>", "<page-2 url>"],
-    "date": "<YYYY-MM-DD>",
-    "source": "carbon-performance-audit"
-  },
-  "pages": {
-    "page-1": {
-      "url": "<landing page URL>",
-      "title": "<document.title>",
-      "performance": <score>,
-      "accessibility": <score>,
-      "best_practices": <score>,
-      "seo": <score>,
-      "initial_weight_kb": <integer>,
-      "deferred_weight_kb": <integer>
-    }
-  }
-}
-```
-
-The `pages` object is a direct copy of the machine-readable block above. `meta.source` is
-always `"carbon-performance-audit"` when written from this agent.
+> **Why this matters.** This phase used to overwrite `page-weights.json` with its own thinner,
+> less accurate numbers and stamp `meta.source: "carbon-performance-audit"`. The evaluator then
+> found that file in Step 1.9, skipped its own Step 3.5 measurement, and shipped the undercounted
+> weights into the final report. Overwriting the file here re-introduces that bug.
 
 ## References
 
@@ -498,6 +467,9 @@ Read before auditing:
 - `references/performance-budgets.md` — all budgets and thresholds
 
 ## Close Session
+
+Close the breakdown session after each page (Step 1.2 opens a fresh one per page), and again at
+the end of the audit:
 
 ```bash
 playwright-cli -s=carbon-perf close

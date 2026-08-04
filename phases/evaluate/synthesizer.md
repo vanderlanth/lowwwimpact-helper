@@ -63,7 +63,10 @@ Sum estimated savings carefully — don't double-count the same bytes.
 
 Use the carbon-performance-audit data:
 
-1. Take the total page weight from the carbon agent's report
+1. Take the total page weight from the carbon agent's report — specifically the landing page's
+   `initial_weight_kb` in its machine-readable block (originating from `/measure-page-weight`).
+   Do **not** use the per-asset-type breakdown total: that is Performance API data, compressed and
+   CORS-restricted, and running the SWD model on it understates carbon by 2–5×.
 2. Calculate CO2 per pageview using the SWD model:
    ```
    CO2 = (totalKB / 1024 / 1024) × 0.206 × 442

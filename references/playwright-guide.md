@@ -7,7 +7,7 @@ Always use your assigned session name (`-s=<session>`) to avoid conflicts with o
 
 ```bash
 # Open browser with named session
-playwright-cli -s=<session> open <url>
+playwright-cli -s=<session> --browser=chromium open <url>
 
 # Navigate to a different page
 playwright-cli -s=<session> goto <url>
@@ -268,7 +268,7 @@ playwright-cli -s=<session> tab-close <index>
 
 ### Why fresh sessions are required for `pages` measurements
 
-Each `playwright-cli -s=<name> open <url>` creates an isolated in-memory browser context
+Each `playwright-cli -s=<name> --browser=chromium open <url>` creates an isolated in-memory browser context
 (equivalent to incognito). When you navigate with `goto` in the same session, the browser
 reuses its cache from previous pages — subsequent pages appear artificially lighter than
 they are for a real first-time visitor. Always open a **new named session** per page
@@ -292,37 +292,26 @@ in a cached reload that silently undercounts by 30–50%.
 
 ### Standard weight measurement pattern
 
-Both `initial_weight_kb` and `deferred_weight_kb` are captured in a single `run-code` call.
-**Open the session with NO URL** so the listener is attached before the first navigation:
+**Do not hand-write this measurement. Run `/measure-page-weight <url...>` instead** and read
+`workspace/page-weights.json`. The full, current implementation lives in exactly one place —
+`commands/measure-page-weight.md` Step 2 — and every phase that needs weights delegates to it.
 
-```bash
-# CRITICAL: no URL here — navigation happens inside run-code
-playwright-cli -s=measure-<slug> open
-playwright-cli -s=measure-<slug> resize 1440 760
-playwright-cli -s=measure-<slug> run-code "async (page) => {
-  const requests = [];
-  page.context().on('requestfinished', (req) => requests.push(req));
-  await page.goto('<url>', { waitUntil: 'load' });
-  await page.waitForTimeout(5000);
-  const getKB = async (reqs) => {
-    const sizes = await Promise.all(reqs.map(r => r.sizes().catch(() => null)));
-    const bytes = sizes.reduce((s, v) => s + (v?.responseBodySize > 0 ? v.responseBodySize : 0), 0);
-    return Math.round(bytes / 1000);
-  };
-  const initial_weight_kb = await getKB(requests.slice());
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.25));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.5));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.75));
-  await page.waitForTimeout(500);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(3000);
-  const deferred_weight_kb = await getKB(requests.slice());
-  return { initial_weight_kb, deferred_weight_kb };
-}"
-# → session is now at <url>; continue with eval-based inspection as normal
-```
+This guide deliberately does not reproduce the code. A copy used to live here and in
+`phases/evaluate/carbon-performance-audit.md`; both drifted behind the command and undercounted by
+2–5×. If you find yourself pasting a weight-measurement snippet, you are re-creating that bug.
+
+For reference, a correct standalone measurement must do all of the following — a snippet missing
+any one of them undercounts:
+
+| Requirement | Why | Cost of omitting |
+|---|---|---|
+| Open the session with **no URL**; navigate inside `run-code` | Listener must be attached before the first request | 30–50% undercount |
+| `Network.clearBrowserCache` before navigating | Guarantees a cold first visit even in a reused session | Cached bytes count as 0 |
+| `Emulation.setDeviceMetricsOverride` with `deviceScaleFactor: 2` | Real visitors are on HiDPI; responsive images serve 2x | 1x images on image-heavy pages |
+| Click the cookie-consent accept button after load | Consent-gated third-party bytes never load otherwise | All CMP-gated tags missing |
+| `state-load workspace/auth-state.json` before navigating | Authenticated routes otherwise bounce to login | Measures the login page |
+| Check `final_url` for `/login`, `/signin`, `/auth` | Catches a silent auth bounce | Login-page weights recorded as real |
+| Union the byte ranges of 206 partial responses per URL instead of summing them | Browsers stream media as several Range requests | A 1 MB video counted as 2 MB, varying per run |
 
 `deferred_weight_kb` is the **total** bytes transferred after scrolling to the bottom
 (initial bytes + lazy-loaded additions). It is NOT a delta.
@@ -335,41 +324,8 @@ standalone weight pass it **keeps the HTTP cache** (no `clearBrowserCache`) so s
 newly downloaded bytes — but it matches the standalone pass on everything else: 1440×760 viewport,
 Retina DPR 2, `state-load` for authed journeys, and cookie consent accepted on step 1.
 
-```bash
-playwright-cli -s=journey-N open
-playwright-cli -s=journey-N resize 1440 760
-# Authed journey: inject saved login state before the first navigation.
-[ -f workspace/auth-state.json ] && playwright-cli -s=journey-N state-load workspace/auth-state.json
-playwright-cli -s=journey-N run-code "async (page) => {
-  const requests = [];
-  page.context().on('requestfinished', (req) => requests.push(req));
-  const getKB = async (reqs) => {
-    const sizes = await Promise.all(reqs.map(r => r.sizes().catch(() => null)));
-    const bytes = sizes.reduce((s, v) => s + (v?.responseBodySize > 0 ? v.responseBodySize : 0), 0);
-    return Math.round(bytes / 1000);
-  };
-  // Retina DPR + viewport, applied once. NO clearBrowserCache — cache is kept across steps.
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 760, deviceScaleFactor: 2, mobile: false });
-  const urls = [/* step URLs from Phase A */];
-  const results = [];
-  for (let i = 0; i < urls.length; i++) {
-    const prevCount = requests.length;
-    await page.goto(urls[i], { waitUntil: 'load' });
-    await page.waitForTimeout(i === 0 ? 5000 : 3000);
-    if (i === 0) {
-      for (const re of [/accept all/i, /allow all/i, /accept/i, /agree/i, /got it/i, /i accept/i]) {
-        try { const b = page.getByRole('button', { name: re }); if (await b.first().isVisible({ timeout: 400 })) { await b.first().click(); await page.waitForTimeout(1500); break; } } catch (e) {}
-      }
-    }
-    const title = await page.title();
-    const kb = await getKB(requests.slice(prevCount));
-    results.push({ url: urls[i], name: title, kb });
-  }
-  return results;
-}"
-playwright-cli -s=journey-N close
-```
+**The implementation lives in `phases/evaluate/evaluator.md` Step 1.5 Phase B.** As with the
+standalone pass, this guide does not reproduce it — one copy only.
 
 - Step 1 is a cold load (fresh session = empty cache); consent accepted here counts toward step 1.
 - Steps 2+ reflect only newly fetched bytes — cached assets are not re-counted.

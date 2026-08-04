@@ -36,7 +36,7 @@ it does not receive parameters.
 
 ### Step 1: Capture Network Overview
 
-1. Open URL: `playwright-cli -s=network-infra open <url>`
+1. Open URL: `playwright-cli -s=network-infra --browser=chromium open <url>`
    Set standard audit viewport: `playwright-cli -s=network-infra resize 1440 760`
 2. Wait for full load: `playwright-cli -s=network-infra network`
 

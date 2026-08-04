@@ -251,7 +251,7 @@ Before the audit phases, crawl the site to build a shared resource inventory.
 **Each page is measured in a fresh session** (no cache from previous pages):
 
 1. For each page to discover (landing page + 3–5 key inner pages):
-   a. Open a new named session: `playwright-cli -s=disc-N open <url>`
+   a. Open a new named session: `playwright-cli -s=disc-N --browser=chromium open <url>`
       Then immediately set the standard audit viewport: `playwright-cli -s=disc-N resize 1440 760`
    b. Wait for the page to fully load + 3 seconds (catches late-triggered resources):
       ```bash
@@ -269,8 +269,10 @@ Before the audit phases, crawl the site to build a shared resource inventory.
 > **Note on discovery weights**: The Performance API cannot measure cross-origin resources
 > without a `Timing-Allow-Origin` header — third-party bytes (analytics, consent managers,
 > CDN assets from external domains) may appear as 0. Report weights as conservative estimates
-> and note this limitation in `discovery.md`. Lighthouse-based measurements in the
-> carbon-performance phase provide the authoritative figures.
+> and note this limitation in `discovery.md`. Discovery weights build the resource inventory only
+> — they must never reach the report or the output JSON. The authoritative figures come from
+> `/measure-page-weight` (`requestfinished` + `responseBodySize`, cold cache, DPR 2, cookie
+> consent accepted, auth state loaded), which the carbon-performance phase invokes and reads.
 
 Discovery template:
 
@@ -412,9 +414,11 @@ Each entry has the original `description` and an ordered `pages` array of `{ url
 `kb` is the total transfer size of that page measured during the clean measurement pass.
 Omit the `journeys` key entirely if the user skipped journey input.
 
-`meta.lighthouse` is `"carbon-performance-audit"` when data came from the carbon-performance phase,
-`"standalone"` when Lighthouse was run directly, or `null` (with `pages` omitted)
-when no Lighthouse data was available.
+`meta.lighthouse` is `"carbon-performance-audit"` when data came from the carbon-performance phase
+(which itself sources it from `/measure-page-weight`), `"standalone"` when `/measure-page-weight`
+was run directly, or `null` (with `pages` omitted) when no Lighthouse data was available. In every
+non-null case the underlying weights and scores originate from `/measure-page-weight` — that is the
+only measurement procedure in the skill.
 
 `lighthouse_recap` is a plain string (max 600 characters) written after all 27 criteria are
 evaluated. It focuses on the lowest-scoring Lighthouse category and cross-references audit
@@ -508,7 +512,7 @@ Each phase uses a named session to avoid conflicts:
 
 ```bash
 # Open session
-playwright-cli -s=images-audit open <url>
+playwright-cli -s=images-audit --browser=chromium open <url>
 
 # Navigate
 playwright-cli -s=images-audit goto <url>

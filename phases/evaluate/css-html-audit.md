@@ -34,7 +34,7 @@ it does not receive parameters.
 
 ### Step 1: Inventory All CSS
 
-1. Open URL: `playwright-cli -s=css-html open <url>`
+1. Open URL: `playwright-cli -s=css-html --browser=chromium open <url>`
    Set standard audit viewport: `playwright-cli -s=css-html resize 1440 760`
 2. Wait for full load: `playwright-cli -s=css-html network`
 3. Snapshot: `playwright-cli -s=css-html snapshot --filename=css-main.txt`

@@ -36,7 +36,7 @@ it does not receive parameters.
 
 ### Step 1: Inventory All Images
 
-1. Open URL: `playwright-cli -s=images-audit open <url>`
+1. Open URL: `playwright-cli -s=images-audit --browser=chromium open <url>`
    Set standard audit viewport: `playwright-cli -s=images-audit resize 1440 760`
 2. Wait for full load, then capture network data: `playwright-cli -s=images-audit network`
 3. Snapshot the page: `playwright-cli -s=images-audit snapshot --filename=images-main.txt`
