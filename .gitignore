@@ -15,5 +15,10 @@ lowwwimpact-evaluation.json
 # Playwright CLI scratch (snapshots, console logs)
 .playwright-cli/
 
+# Local symlink making commands/ loadable as slash commands while working in this
+# repo (.claude/commands -> ../commands). Not part of the skill — hosts get the real
+# files via the install workflow.
+.claude/commands
+
 # Ad-hoc HAR captures used for benchmarking — not part of the skill
 *.har
