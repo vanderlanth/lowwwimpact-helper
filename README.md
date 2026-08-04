@@ -1,12 +1,12 @@
 # lowwwimpact-helper
 
-An AI agent skill for auditing web sustainability. It browses live websites with Playwright, produces prioritized carbon-impact reports, and evaluates sites against the [lowwwimpact](https://lowwwimpact.com/) assessment criteria. Includes modes for generating developer eco-design specs and designer eco-review PDFs — from Figma frames or directly from a code project.
+An AI agent skill for auditing web sustainability. It browses live websites with Playwright, produces prioritized carbon-impact reports, and evaluates sites against the [lowwwimpact](https://lowwwimpact.com/) assessment criteria. It also generates paired eco-design deliverables — developer specs and a designer review — from Figma frames or directly from a code project.
 
 Built for [Cursor](https://cursor.com/) (Agent Skills) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Skills).
 
 ## What it does
 
-Five modes of operation:
+Four modes of operation:
 
 | Mode | Trigger | Prompt example | Output |
 |------|---------|----------------|--------|
@@ -14,8 +14,7 @@ Five modes of operation:
 | **1 - Review** | Provide a URL | `Use /lowwwimpact-helper in mode 1 to review https://www.liip.ch` | Sustainability report with carbon grade, page weight breakdown, and prioritized findings |
 | **2 - Evaluate** | Say "evaluate" / "lowwwimpact" / "assessment" / "criteria" + URL. Prompts for 1-2 optional user journeys before starting. | `Use /lowwwimpact-helper in mode 2 to evaluate https://www.liip.ch. User journey: from the homepage, find a blog post and read it.` | JSON assessment of 27 lowwwimpact criteria with pass/fail/partial answers, plus per-journey page weight data. Works standalone — run `/measure-page-weight <url>` first for best accuracy, or provide Mode 1 output for full evidence. |
 | **3 - Fix** | Say "fix" / "fix plan" | `Use /lowwwimpact-helper in mode 3 to generate a fix plan` | Persistent `fix-plan.md` ranked by KB savings, with criteria IDs and curated web references. Requires Mode 1 + Mode 2 output. |
-| **4 - Specs** | "specs" / "dev specs" / "eco specs" — with Figma frame URLs or without (inspects current project) | With Figma: `Use /lowwwimpact-helper in mode 4 to generate eco specs from these Figma frames: https://figma.com/design/...` · With code: `Use /lowwwimpact-helper in mode 4 to generate eco specs for this project` | Developer-facing `dev-specs.md` with technical sustainability requirements per element type and curated references |
-| **5 - Designer Eco-Review** | "eco review" / "designer review" — with Figma frame URLs or without (inspects current project) | With Figma: `Use /lowwwimpact-helper in mode 5 to do an eco review for designers: https://figma.com/design/...` · With code: `Use /lowwwimpact-helper in mode 5 to do an eco review for this project` | Designer-facing `eco-review.md` + PDF with per-screen findings against eco-design principles |
+| **4 - Specs & Review** | "specs" / "dev specs" / "eco specs" / "eco review" / "designer review" — with Figma frame URLs or without (inspects current project) | With Figma: `Use /lowwwimpact-helper in mode 4 on these Figma frames: https://figma.com/design/...` · With code: `Use /lowwwimpact-helper in mode 4 for this project` | Two files from one discovery run: developer-facing `dev-specs.md` (technical requirements per element type) and designer-facing `eco-review.md` (per-screen findings against eco-design principles) |
 
 ### Mode 1 - Review
 
@@ -29,21 +28,20 @@ Evaluates a site against the 27 MVP criteria from the [W3C Web Sustainability Gu
 
 Reads `workspace/lowwwimpact-evaluation.json` and `workspace/sustainability-report.md`, builds a fix index ranked by KB savings, searches for authoritative references per fix command, and writes a persistent `workspace/fix-plan.md`.
 
-### Mode 4 - Specs
+### Mode 4 - Specs & Review
 
-Fully independent of Modes 1-3. Detects which element types are present (images, fonts, video, carousels, third-party embeds, animations, live feeds, cookie consent) and generates a concise developer-facing markdown file of technical sustainability requirements. Each spec section includes 2-3 curated implementation references aimed at junior developers.
-
-**Two input paths:**
-- **Figma frames:** Provide one or more `figma.com` frame URLs — uses the Figma MCP for visual and structural analysis
-- **Code project:** Provide no URLs — scans the current project directory using grep across template files, CSS, JavaScript, and `package.json`
-
-### Mode 5 - Designer Eco-Review
-
-Fully independent of Modes 1-4. Analyzes 2-3 screens against eco-design principles for designers, and produces a clean PDF report with per-screen findings and a Design Sobriety section drawn from the Sustainable Web Design reference. All findings are expressed as design decisions: no code, no developer jargon.
+Fully independent of Modes 1-3. Runs discovery once and writes two audience-specific files from it. There are no flags and no sub-modes — every run produces both.
 
 **Two input paths:**
-- **Figma frames:** Provide 2-3 `figma.com` frame URLs — uses the Figma MCP for visual and structural analysis
-- **Code project:** Provide no URLs — identifies 2-3 main page templates in the current project and treats each as a screen
+- **Figma frames:** Provide one or more `figma.com` frame URLs — uses the Figma MCP, reading designer annotations first and filling the gaps visually
+- **Code project:** Provide no URLs — greps the current project directory project-wide, then scans 2-3 representative page templates individually as "screens"
+
+Either path writes `workspace/element-inventory.json`. Both writers then read that file — nothing is inspected twice:
+
+| Output | Audience | Content |
+|--------|----------|---------|
+| `dev-specs.md` | Developers | Technical sustainability requirements per detected element type, sourced from `references/ecodesign-requirements-concise.md` with its curated documentation links |
+| `eco-review.md` | Designers | Per-screen findings against the eco-design principles, top cross-screen actions, and a Design Sobriety section drawn from the Sustainable Web Design reference. All findings are design decisions: no code, no developer jargon. |
 
 ## Auditing pages behind a login
 
@@ -153,7 +151,7 @@ playwright-cli install --skills
 
 **Lighthouse CLI** used by Mode 1 for performance, accessibility, best-practices, and SEO scoring. Runs via `npx` - no separate installation needed if Node.js >= 18 is available. Verify: `npx lighthouse --version`.
 
-**Figma MCP** required for Modes 4 and 5 when using Figma frame URLs. Not needed when running those modes on a code project. Must be configured in your Claude Code or Cursor settings.
+**Figma MCP** required for Mode 4 when using Figma frame URLs. Not needed when running Mode 4 on a code project. Must be configured in your Claude Code or Cursor settings.
 
 ## File structure
 
@@ -189,12 +187,11 @@ lowwwimpact-helper/
 │   │   └── synthesizer.md                      # Merges 6 reports into final assessment
 │   ├── mode-2-evaluate/
 │   │   └── evaluator.md                        # Mode 2 - lowwwimpact criteria assessment
-│   ├── mode-4-specs/
-│   │   ├── figma-specs-agent.md                # Mode 4 (Figma path) - developer eco-design spec writer
-│   │   └── code-specs-agent.md                 # Mode 4 (code path) - developer eco-design spec writer
-│   └── mode-5-designer-review/
-│       ├── eco-designer-review-agent.md        # Mode 5 (Figma path) - designer eco-review and PDF
-│       └── code-eco-review-agent.md            # Mode 5 (code path) - designer eco-review and PDF
+│   └── mode-4-specs-review/
+│       ├── figma-inventory-agent.md            # Mode 4 (Figma path) - builds element-inventory.json
+│       ├── code-inventory-agent.md             # Mode 4 (code path) - builds element-inventory.json
+│       ├── dev-specs-writer.md                 # Mode 4 - developer specs from the inventory
+│       └── designer-review-writer.md           # Mode 4 - designer review from the inventory
 └── references/
     ├── lowwwimpact-criteria.json               # 27 MVP criteria with defaults
     ├── playwright-guide.md                     # Playwright CLI reference for agents
@@ -204,9 +201,9 @@ lowwwimpact-helper/
     ├── code-efficiency.md                      # Code-level efficiency patterns
     ├── media-optimization.md                   # Image/video/font optimization reference
     ├── performance-budgets.md                  # Page weight budgets
-    ├── figma-specs.md                          # Spec content per element type (Mode 4)
-    ├── eco-design-principles-for-designers.md  # Per-screen eco-design checklist (Mode 5)
-    └── design-sobriety-principles.md           # Design Sobriety principles reference (Mode 5)
+    ├── ecodesign-requirements-concise.md       # 41 eco-design requirement blocks with curated links (Mode 4 dev specs)
+    ├── eco-design-principles-for-designers.md  # Per-screen eco-design checklist (Mode 4 designer review)
+    └── design-sobriety-principles.md           # Design Sobriety principles reference (Mode 4 designer review)
 ```
 
 ## Workspace outputs
@@ -222,9 +219,9 @@ workspace/
 ├── page-weights.json                # Cached page weights + Lighthouse scores (Mode 1 or /measure-page-weight)
 ├── lowwwimpact-evaluation.json      # Criteria assessment for human review (Mode 2)
 ├── fix-plan.md                      # Ranked fix plan with references (Mode 3)
-├── dev-specs.md                     # Developer-facing eco-design spec file (Mode 4)
-├── eco-review.md                    # Designer eco-review source markdown (Mode 5)
-└── eco-review.pdf                   # Exported PDF for designer handoff (Mode 5)
+├── element-inventory.json           # Shared discovery output, consumed by both writers (Mode 4)
+├── dev-specs.md                     # Developer-facing eco-design specs (Mode 4)
+└── eco-review.md                    # Designer-facing eco-review (Mode 4)
 ```
 
 ## Companion commands

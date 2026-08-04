@@ -3,9 +3,9 @@
 A multi-agent sustainability audit system that browses live web applications with Playwright CLI
 and produces a prioritized, actionable report with carbon impact estimates. Every finding maps
 to a specific `/xyz-optim` fix command. Can also evaluate a site against the lowwwimpact
-sustainability criteria, produce a structured JSON assessment for human review, generate
-developer-facing eco-design spec files from Figma frames, and produce designer-facing
-eco-review PDFs from Figma screens.
+sustainability criteria, produce a structured JSON assessment for human review, and generate
+paired eco-design deliverables — developer specs and a designer review — from Figma frames or
+directly from a code project.
 
 ## Prerequisites
 
@@ -85,44 +85,29 @@ via live WebSearch.
 
 Requires Mode 2 output.
 
-### Mode 4: Specs
+### Mode 4: Eco-Design Specs & Review
 
-Triggered by keywords "specs", "eco specs", "dev specs", "sustainability specs", or
-"figma specs" — with or without Figma frame URLs.
+Triggered by keywords "specs", "eco specs", "dev specs", "sustainability specs", "figma specs",
+"eco review", "designer review", "design review", "eco-design principles", or
+"review for designers" — with or without Figma frame URLs.
 
-**If `figma.com` frame URLs are present:** Analyzes each Figma frame using the Figma MCP to
-detect which element types are present (images, fonts, video, carousels, third-party embeds,
-animations, live feeds, cookie consent UI).
+Runs discovery **once** and writes **two** audience-specific files from it. There are no flags and
+no sub-modes: every run produces both.
 
-**If no `figma.com` URLs are present:** Scans the current project directory to detect the same
-element types from the codebase (template files, CSS, JavaScript, package.json).
+**If `figma.com` frame URLs are present:** inspects each frame with the Figma MCP — annotations
+first, then visual detection.
 
-In both cases: generates a concise developer-facing markdown file of technical sustainability
-requirements — the "invisible" specs that designers don't annotate. Each spec section includes
-2–3 curated implementation references aimed at junior developers.
+**If no `figma.com` URLs are present:** scans the current project directory — project-wide
+detection plus a per-screen scan of 2–3 representative page templates.
+
+Either path writes `workspace/element-inventory.json`, which both writers then consume:
+
+| Output | Audience | Content |
+|---|---|---|
+| `workspace/dev-specs.md` | Developers | Technical sustainability requirements per element type — the "invisible" specs designers don't annotate — with curated references |
+| `workspace/eco-review.md` | Designers | Per-screen findings against the eco-design principles, key actions, and a design sobriety section. No code, no developer jargon. |
 
 Fully independent of Modes 1–3. Does not require Playwright or a live URL.
-
-### Mode 5: Designer Eco-Review
-
-Triggered by keywords "eco review", "designer review", "design review", "eco-design principles",
-or "review for designers" — with or without Figma frame URLs.
-
-**Must be checked before Mode 4.** If the intent matches both Mode 4 and Mode 5 trigger words,
-prefer Mode 5 when the user explicitly says "designer", "for designers", or "design feedback".
-
-**If `figma.com` frame URLs are present (2–3):** Analyzes each Figma frame using the Figma MCP
-against the eco-design principles for designers.
-
-**If no `figma.com` URLs are present:** Scans the current project directory, identifies 2–3 main
-page templates as "screens", and analyzes each template's design decisions against the same
-eco-design principles.
-
-In both cases: produces a simple, clean PDF report (`workspace/eco-review.pdf`) with per-screen
-findings and top cross-screen recommendations. All findings are expressed as design decisions —
-no code, no developer jargon.
-
-Fully independent of Modes 1–4. Does not require Playwright or a live URL.
 
 ---
 
@@ -143,19 +128,17 @@ live site.
 | 6 | **Carbon & Performance** | Page weight budget, carbon calculation, hosting, aggregate metrics | Playwright CLI, WebFetch | `/performance-optim` | `agents/mode-1-review/carbon-performance-audit.md` |
 | 7 | **Synthesizer** | Reads all 6 reports → prioritized action plan with fix command mapping | — | — | `agents/mode-1-review/synthesizer.md` |
 
-### Specs Agents (Mode 4)
+### Specs & Review Agents (Mode 4)
+
+One inventory agent runs (whichever matches the input path), then both writers run in parallel off
+its JSON output.
 
 | # | Agent | Input | Focus | Tools | Reference |
 |---|-------|-------|-------|-------|-----------|
-| 9 | **Figma Specs** | Figma frame URLs | Detects element types in Figma frames → maps to eco-design technical specs → writes dev-facing markdown with curated references | Figma MCP, WebSearch | `agents/mode-4-specs/figma-specs-agent.md` |
-| 9b | **Code Specs** | Project directory | Detects element types in codebase via grep → maps to eco-design technical specs → writes dev-facing markdown with curated references | Bash, WebSearch | `agents/mode-4-specs/code-specs-agent.md` |
-
-### Designer Eco-Review Agents (Mode 5)
-
-| # | Agent | Input | Focus | Tools | Reference |
-|---|-------|-------|-------|-------|-----------|
-| 10 | **Eco-Designer Review** | Figma frame URLs | Analyzes 2–3 Figma screens against eco-design principles for designers → writes per-screen findings + top recommendations → exports PDF | Figma MCP, Bash | `agents/mode-5-designer-review/eco-designer-review-agent.md` |
-| 10b | **Code Eco-Review** | Project directory | Identifies 2–3 main templates as screens, analyzes design decisions in codebase against eco-design principles → writes per-screen findings + exports PDF | Bash | `agents/mode-5-designer-review/code-eco-review-agent.md` |
+| 9 | **Figma Inventory** | Figma frame URLs | Extracts annotations, then detects element types visually → writes `element-inventory.json` | Figma MCP | `agents/mode-4-specs-review/figma-inventory-agent.md` |
+| 9b | **Code Inventory** | Project directory | Project-wide grep detection + per-screen scan of 2–3 templates → writes `element-inventory.json` | Bash | `agents/mode-4-specs-review/code-inventory-agent.md` |
+| 10 | **Dev Specs Writer** | `element-inventory.json` | Maps detected categories to eco-design requirement blocks → writes dev-facing specs with curated references | Read | `agents/mode-4-specs-review/dev-specs-writer.md` |
+| 10b | **Designer Review Writer** | `element-inventory.json` | Analyzes per-screen inventory against eco-design principles → writes designer-facing findings + sobriety section | Read | `agents/mode-4-specs-review/designer-review-writer.md` |
 
 ### Evaluate Agent (Mode 2)
 
@@ -589,174 +572,49 @@ need human review, and any notable pass/fail highlights.
 
 ---
 
-## Specs Mode Workflow (Mode 4)
+## Specs & Review Mode Workflow (Mode 4)
+
+Discovery runs once; both writers consume its output. There are no flags — every run produces both
+`workspace/dev-specs.md` and `workspace/eco-review.md`.
 
 ### Step 1: Collect Inputs and Detect Path
 
-- Accept optional context: project name, CMS in use, known tech stack
+- Accept optional context: project name, CMS in use, known tech stack, target audience
 - **Check whether the user provided any `figma.com` URLs:**
-  - If yes → **Figma path**: follow Steps 2a–4 below (Figma MCP inspection)
-  - If no → **Code path**: follow Steps 2b–4 below (codebase scan)
+  - If yes → **Figma path**
+  - If no → **Code path** (current working directory)
 
-### Step 2a: Figma Path — Analyse Frames
+### Step 2: Build the Inventory (one agent)
 
-- Accept 1–N Figma frame URLs from the user
-- Read `references/figma-specs.md` and `references/sustainability-checklist.md` before starting
-- Spawn the Figma Specs agent (`agents/mode-4-specs/figma-specs-agent.md`). For each Figma URL:
+**Figma path** — spawn the Figma Inventory agent
+(`agents/mode-4-specs-review/figma-inventory-agent.md`) with the frame URLs. Per frame it calls
+`get_screenshot` and `get_design_context` once, extracts the annotation index first, then fills
+remaining categories by visual detection.
 
-1. Call `get_design_context` (Figma MCP) with the frame's `fileKey` and `nodeId`
-2. Call `get_screenshot` if a visual confirmation is needed for ambiguous layers
-3. Build an element inventory — which of the following are present across *all* analyzed frames:
+**Code path** — spawn the Code Inventory agent
+(`agents/mode-4-specs-review/code-inventory-agent.md`) with the current working directory. It runs
+project-wide grep passes for boolean presence, then selects 2–3 representative page templates and
+scans each one individually as a "screen".
 
+Either agent writes `workspace/element-inventory.json`. Do not proceed until it exists.
 
-| Element type | Detection signals |
-|---|---|
-| Raster images / photos | Background image fills, JPEG/PNG/WebP layers, media placeholders |
-| Icons | Small image layers, icon components, SVG frames |
-| Video / audio | Player UI components, media frames, play-button overlays |
-| Carousel / slider | Multiple slide layers, pagination dots, prev/next navigation |
-| Custom fonts | Non-system typefaces in text layers (anything not Arial, Helvetica, Georgia, system-ui, etc.) |
-| Third-party embeds | Map widgets, YouTube/Vimeo frames, social feed components, chat widgets |
-| Animation cues | Transition annotations, motion labels, animated component names |
-| Live / feed content | News tickers, live badges, feed cards, polling indicators |
-| Cookie consent UI | Cookie banners, GDPR overlays, consent modals, privacy preference dialogs |
+### Step 3: Write Both Outputs (two agents in parallel)
 
-### Step 2b: Code Path — Scan Codebase
+Spawn both writers in the same message so they run concurrently. Neither one re-inspects Figma or
+the codebase — both read only the inventory JSON.
 
-- Read `references/figma-specs.md` and `references/sustainability-checklist.md` before starting
-- Spawn the Code Specs agent (`agents/mode-4-specs/code-specs-agent.md`) with the current working directory as input
-- The agent scans template files, CSS, JavaScript, and `package.json` to detect which element
-  types are implemented, using grep passes for each category (images, fonts, video, third-party,
-  animation, carousel, live content, cookie consent)
+| Agent | Reads | Writes |
+|---|---|---|
+| `agents/mode-4-specs-review/dev-specs-writer.md` | inventory `project.detected` + `references/ecodesign-requirements-concise.md` + `references/sustainability-checklist.md` | `workspace/dev-specs.md` |
+| `agents/mode-4-specs-review/designer-review-writer.md` | inventory `screens[]` + `references/eco-design-principles-for-designers.md` + `references/design-sobriety-principles.md` | `workspace/eco-review.md` |
 
-### Step 3: Build Spec Sections
+The dev-specs writer does **not** run WebSearch — every reference it emits comes from the
+`**Documentation**` blocks already curated in `references/ecodesign-requirements-concise.md`.
 
-For each detected element type, include the matching spec block (see the spawned agent's file for
-full mapping). Then run **WebSearch** to find 2–3 authoritative implementation references for
-that section. Prefer MDN, web.dev, W3C, Smashing Magazine, CSS-Tricks, or official spec docs.
-Target practical how-to guides over generic overviews — useful for junior developers.
+### Step 4: Report
 
-### Step 4: Append Always-on Specs
-
-Regardless of input source (Figma or code), always append:
-
-- **CMS Upload Constraints** — max weight/dimensions, auto-renditions, editor guidance
-- **CMS Edition Constraints** — block/gallery/embed limits, shared asset reuse
-- **Keyboard Accessibility** — skip-to-content, full keyboard nav
-
-Add **Cookies** only if no cookie consent UI (Figma path) or cookie consent library (code path)
-was detected.
-
-Each always-on section also includes 2–3 WebSearch-sourced references.
-
-### Step 5: Write Output
-
-Save to `workspace/dev-specs.md` following the template below.
-Append a metadata footer with estimated token consumption.
-Present the file to the user.
-
-```markdown
-# Dev Eco-Design Specs — [Project / Screen name]
-
-> Analyzed frames: [frame name 1], [frame name 2] | [date]
-
----
-
-## [Element type, e.g. Images]
-
-- Imperative spec line
-- Imperative spec line with `inline code` where relevant
-
-**Resources**
-- [Title](url) — why it's relevant
-- [Title](url)
-
----
-
-## Always-on Specs
-
-### CMS Upload Constraints
-
-- Spec lines…
-
-**Resources**
-- [Title](url)
-
-### CMS Edition Constraints
-
-- Spec lines…
-
-**Resources**
-- [Title](url)
-
-### Keyboard Accessibility
-
-- Spec lines…
-
-**Resources**
-- [Title](url)
-
-### Cookies *(no consent UI detected in analyzed screens)*
-
-- Spec lines…
-
-**Resources**
-- [Title](url)
-
----
-
-*Generated by lowwwimpact-helper Mode 4 | [model-id] | Frames analyzed: N | ~X tokens · ~$X*
-```
-
----
-
-## Designer Eco-Review Mode Workflow (Mode 5)
-
-### Step 1: Collect Inputs and Detect Path
-
-- Accept optional context: project name, target audience, or other framing
-- **Check whether the user provided any `figma.com` URLs:**
-  - If yes → **Figma path**: accept 2–3 Figma frame URLs; follow Step 2a below
-  - If no → **Code path**: use the current project directory; follow Step 2b below
-- Read `references/eco-design-principles-for-designers.md` before starting
-
-### Step 2a: Figma Path — Analyse Frames
-
-Spawn the Eco-Designer Review agent (`agents/mode-5-designer-review/eco-designer-review-agent.md`). For each Figma URL:
-
-1. Call `get_design_context` (Figma MCP) with the frame's `fileKey` and `nodeId`
-2. Call `get_screenshot` if visual confirmation is needed for ambiguous layers
-3. Build an element inventory per screen (images, fonts, motion, layout, CTAs, third-party widgets, forms, etc.)
-
-### Step 2b: Code Path — Scan Codebase
-
-Spawn the Code Eco-Review agent (`agents/mode-5-designer-review/code-eco-review-agent.md`) with the current working
-directory as input. The agent:
-
-1. Discovers 2–3 main page templates in the project (homepage, listing page, detail page, etc.)
-2. Treats each template as a "screen" — reads its code and related CSS/JS to build a design inventory
-3. Uses grep passes to detect images, fonts, animation, third-party embeds, interaction patterns,
-   and layout signals
-
-### Step 3: Analyze and Write
-
-The spawned agent walks through every category in `references/eco-design-principles-for-designers.md`,
-produces per-screen findings (skipping compliant or non-applicable categories), writes a
-global Key Actions section, a Design Sobriety section drawn from the Sustainable Web Design
-reference, and saves to `workspace/eco-review.md`.
-
-### Step 4: Export PDF
-
-Run:
-
-```bash
-npx md-to-pdf workspace/eco-review.md
-```
-
-Produces `workspace/eco-review.pdf`. If the command fails, report the markdown path and note
-that the user can convert manually.
-
-Present both file paths to the user on completion.
+Present all three paths to the user: the inventory JSON, `dev-specs.md`, and `eco-review.md`.
+Summarize in one line how many screens were analyzed and how many element categories were detected.
 
 ---
 
@@ -828,19 +686,13 @@ workspace/
 └── fix-plan.md                      # Persistent fix plan with criteria links and web references
 ```
 
-### Figma Specs Mode — Mode 4
+### Specs & Review Mode — Mode 4
 
 ```
 workspace/
-└── dev-specs.md                     # Developer-facing eco-design spec file generated from Figma frames
-```
-
-### Designer Eco-Review Mode — Mode 5
-
-```
-workspace/
-├── eco-review.md                    # Source markdown: per-screen findings + top recommendations
-└── eco-review.pdf                   # Exported PDF for designer handoff
+├── element-inventory.json           # Shared discovery output — consumed by both writers
+├── dev-specs.md                     # Developer-facing eco-design specs per detected element type
+└── eco-review.md                    # Designer-facing per-screen findings + design sobriety section
 ```
 
 ---
@@ -858,9 +710,8 @@ workspace/
 9. In evaluate mode (Mode 2): load criteria, run the evaluator agent with available evidence, present JSON output with summary
    - **If `--debug` is set**: run the **Evaluate Debug Workflow** directly instead — execute the shared auth + measure pipeline, write `workspace/debug-weights.json`, present the per-page summary, and stop. Do NOT load criteria, spawn the evaluator, or run any Mode 1 agent.
 10. In fix mode (Mode 3): load evaluation JSON + sustainability report, build fix index, research references via WebSearch, write `workspace/fix-plan.md`
-11. In specs mode (Mode 4): detect whether Figma URLs are present; if yes spawn Figma Specs agent, if no spawn Code Specs agent; write `workspace/dev-specs.md`
-12. In designer eco-review mode (Mode 5): detect whether Figma URLs are present; if yes spawn Eco-Designer Review agent, if no spawn Code Eco-Review agent; write `workspace/eco-review.md` and export PDF
-13. In init mode (Mode 0): run the **Init Workflow** — copy `commands/*.md` into the project's `.claude/commands/` and add the companion `@import` to `CLAUDE.md` (idempotent). Do not run any audit agent.
+11. In specs & review mode (Mode 4): detect whether Figma URLs are present; spawn the matching inventory agent (Figma or code) to write `workspace/element-inventory.json`; then spawn both writers in parallel off that JSON to produce `workspace/dev-specs.md` and `workspace/eco-review.md`. Both outputs are always produced — there are no flags.
+12. In init mode (Mode 0): run the **Init Workflow** — copy `commands/*.md` into the project's `.claude/commands/` and add the companion `@import` to `CLAUDE.md` (idempotent). Do not run any audit agent.
 
 ---
 
@@ -877,7 +728,7 @@ The user can customize the review by:
 - **Debug measurement only**: "evaluate --debug <url>" (auth + weight + Lighthouse only → `workspace/debug-weights.json`, no criteria)
 - **Custom criteria file**: "Use this criteria file: path/to/custom-criteria.json"
 - **Generating fix plan (Mode 3)**: "Generate a fix plan" (uses Mode 2 evaluation JSON + Mode 1 report)
-- **Generating Figma specs (Mode 4)**: "Generate eco specs from this Figma frame" or provide figma.com URLs with spec/recommendation intent (fully independent — no prior modes needed)
+- **Generating eco-design specs and review (Mode 4)**: "Generate eco specs" / "run an eco review" — with figma.com URLs for the Figma path, or without for the current project. Always produces both the developer specs and the designer review (fully independent — no prior modes needed)
 
 Adapt the agent roster and instructions accordingly.
 
